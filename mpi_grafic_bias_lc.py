@@ -60,22 +60,22 @@ def main(path, level, patch_size):
     #mpi.msg("Loading initial conditions")
     print(msg.format(rank, "Loading initial conditions"))
     
-    # ics = grafic_snapshot.load_snapshot(path, level, sample_fft_spacing=False)
-    ics = grafic_snapshot.load_snapshot(path, level) #, field='deltab')
-
     if rank == 0:
         # Make sure vbc field exists on disk
-        if not ics.field_exists_on_disk("vbc"):
-            ics.write_field(ics["vbc"], "vbc")
+        if not os.path.isfile(path+"level_{0:03d}/ic_vbc".format(level)):
+            grafic_snapshot.derive_vbc(path, level)
         # Make patches dir
         if os.path.isdir("./patches"):
             raise Exception('Patches already exist. Remove and re-run.')
         if not os.path.isdir("./patches"):
             os.mkdir("./patches")
 
+        # ics = grafic_snapshot.load_snapshot(path, level, sample_fft_spacing=False)
+    ics = [grafic_snapshot.load_snapshot(path, level, field=field) for field in ['deltab', 'vbc']]
+
     pad = 8
-    div = np.array([float(i) for i in divisors(ics.N - 2*pad, mode='yield')])
-    idx = np.abs(((ics.N - 2*pad) / div) * ics.dx - patch_size).argmin()
+    div = np.array([float(i) for i in divisors(ics[0].N - 2*pad, mode='yield')])
+    idx = np.abs(((ics[0].N - 2*pad) / div) * ics[0].dx - patch_size).argmin()
     ncubes = int(div[idx])
 
     # Compute cube positions in cell units
@@ -83,7 +83,7 @@ def main(path, level, patch_size):
     if rank == 0:
         print(msg.format(rank, "Using {0} cubes per dimension.".format(ncubes)))
         # Try creating a padded region around the outside of the IC box
-        cubes, dx = vbc_utils.cube_positions(ics, ncubes, ics.N - 2*pad)
+        cubes, dx = vbc_utils.cube_positions(ics[0], ncubes, ics[0].N - 2*pad)
         cubes = np.array(cubes)
         cubes += pad
         # Split the cubes into chunks that can be scattered to each processor 
@@ -110,16 +110,16 @@ def main(path, level, patch_size):
 
         delta = vbc = None
         if (P): print(msg.format(rank, "Loading patch: {0}").format(patch))
-        delta = ics.load_patch("deltab", origin, int(dx_eps))
-        vbc = ics.load_patch("vbc", origin, int(dx_eps))
+        delta = ics[0].load_patch(origin, int(dx_eps))
+        vbc = ics[1].load_patch(origin, int(dx_eps))
 
         # Compute the bias
         if (B): print(msg.format(rank, "Computing bias"))
-        k_bias, b_cdm, b_b = vbc_utils.compute_bias_lc(ics, vbc)
+        k_bias, b_cdm, b_b = vbc_utils.compute_bias_lc(ics[1], vbc)
 
         # Convolve with field
         if (C): print(msg.format(rank, "Performing convolution"))
-        delta_biased = vbc_utils.apply_density_bias(ics, k_bias, b_b, delta.shape[0], delta_x=delta)
+        delta_biased = vbc_utils.apply_density_bias(ics[0], k_bias, b_b, delta.shape[0], delta_x=delta)
 
         # Remove the padded region
         x_shape, y_shape, z_shape = delta_biased.shape
@@ -159,7 +159,7 @@ def main(path, level, patch_size):
         import os
         # Write new ICs
 
-        output_field = np.zeros(ics.n)
+        output_field = np.zeros(ics[0].n)
         # dest = np.zeros(cubes.size, dtype=object)
         # j = 0
         dest = []
@@ -203,7 +203,7 @@ def main(path, level, patch_size):
         if not os.path.isdir(out_dir):
             os.mkdir(out_dir)
 
-        ics.write_field(output_field, "deltab", out_dir=out_dir)
+        ics[0].write_field(output_field, "deltab", out_dir=out_dir)
 
 if __name__ == "__main__":
     import sys

@@ -186,7 +186,7 @@ def compute_velocity_bias_lc(ics, vbc):
     # print 'AVERAGE INSTEAD OF RMS'
     # Init fields
     if vbc is None:
-        vbc = ics['vbc']
+        vbc = ics
 
     # Compute size of grid and boxsize
     N = vbc.shape[0]
@@ -361,7 +361,7 @@ def apply_density_bias(ics, k_bias, b, N, delta_x=None):
     import scipy.interpolate as si
 
     if delta_x is None:
-        delta_x = ics['deltab']
+        delta_x = ics
 
     shape = delta_x.shape
 

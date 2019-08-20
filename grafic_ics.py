@@ -278,6 +278,7 @@ class Snapshot:
         fname = self.field_fname(field)
         return os.path.isfile(fname)
 
+
     def field_fname(self, field):
         return '%s/ic_%s' % (self.level_dir, field)
 

@@ -76,11 +76,12 @@ class Header:
             # area = np.fromfile(f, dtype=np.int32, count=1)
             # assert(area == int(n1 * n2 * 4)), 'area = {0} bytes'.format(area)
 
-            # Wrap up variables conveniently
+            # Wrap up variables conveniently, converting h0 from H0 to
+            # little h
             n = (n1, n2, n3)
             dx = dxini
             xoff = (xoff1, xoff2, xoff3)
-            cosmo = (astart, omega_m, omega_l, h0)
+            cosmo = (astart, omega_m, omega_l, h0/100.0)
             area = int(n1 * n2 * 4)  # Total number of bytes in a slice
             size = 44 + 8 + 4        # Total number of bytes in header,
                                      # including first record header
@@ -114,6 +115,7 @@ class Snapshot:
         self.dx = self.header.dx
         self.z = 1.0/self.header.cosmo[0] - 1.0
 
+        # h here is little h, i.e. H0 = 100*h km/s/Mpc
         self.cosmo = {"aexp":self.header.cosmo[0],
                       "omega_M_0":self.header.cosmo[1],
                       "omega_lambda_0": self.header.cosmo[2],
@@ -203,11 +205,12 @@ class Snapshot:
 
         # We can use the numpy.ndarray.tofile functionality to easily
         # write the header while keeping control over data types
+
         header_bytes.tofile(f)
         n.tofile(f)
         np.array([dx, origin[0], origin[1], origin[2], cosmo['aexp'],
                   cosmo['omega_M_0'], cosmo['omega_lambda_0'],
-                  cosmo['h'] * 100.], dtype=np.float32).tofile(f)
+                  cosmo['h'] * 100.0], dtype=np.float32).tofile(f)
         header_bytes.tofile(f)
 
 

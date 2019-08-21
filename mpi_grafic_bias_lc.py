@@ -2,6 +2,15 @@ import numpy as np
 import os
 import gc
 import pickle
+"""
+TODO
+
+- swap ics from a list to a dictionary for more explicit indexing
+
+- figure out padding stuff -- currently there is a region of size pad
+around the edge that isn't included, as the periodic access of data
+currently isn't implemented
+ """
 
 # VERBOSE = 1  # 0 for all, >0 for just patch, <0 for none
 P = False
@@ -46,10 +55,10 @@ def main(path, level, patch_size):
     import utils as vbc_utils
     from utils import divisors
     import grafic_ics as grafic_snapshot
-    #from seren3.analysis.parallel import mpi
     from mpi4py import MPI
     import gc
     import os
+    import time
   
     # MPI stuff
     comm = MPI.COMM_WORLD
@@ -67,8 +76,12 @@ def main(path, level, patch_size):
         # Make patches dir
         if os.path.isdir("./patches"):
             raise Exception('Patches already exist. Remove and re-run.')
-        if not os.path.isdir("./patches"):
+        elif not os.path.isdir("./patches"):
             os.mkdir("./patches")
+    else:
+        # Wait for rank 0 to write the velb, velc and vbc fields
+        while not os.path.isfile(path+"level_{0:03d}/ic_vbc".format(level)):
+            time.sleep(1.0e-3)
 
         # ics = grafic_snapshot.load_snapshot(path, level, sample_fft_spacing=False)
     ics = [grafic_snapshot.load_snapshot(path, level, field=field) for field in ['deltab', 'vbc']]
@@ -106,7 +119,6 @@ def main(path, level, patch_size):
     
         origin = np.array(patch - float(dx) / 2. - pad, dtype=np.int64)
         dx_eps = float(dx) + float(2 * pad)
-        print('dx_eps = {0}'.format(dx_eps))
 
         delta = vbc = None
         if (P): print(msg.format(rank, "Loading patch: {0}").format(patch))
@@ -138,51 +150,32 @@ def main(path, level, patch_size):
 
         gc.collect()
 
-        # if rank == 0:
-            # print('after')
-            # objgraph.show_growth(limit=3)
-            # print(h.heap())
-            # obj = objgraph.by_type('Patch')
-            #objgraph.show_backrefs([obj], max_depth=10)
-
-
     del biased_patch
     gc.collect()
     
-    # print(msg.format(rank, "memory usage = {1:.3f} Mo".format(rank, get_memory_usage())))
     print(msg.format(rank, 'Done patches'))
 
-    # dest = comm.gather(biased_patches, root=0)
-    
 ############################## END OF WORK LOOP ###############################
     if rank == 0:
         import os
         # Write new ICs
 
         output_field = np.zeros(ics[0].n)
-        # dest = np.zeros(cubes.size, dtype=object)
-        # j = 0
+
         dest = []
         for i in range(size):
             # Unpickle
             with open(r"patches/patch_{0}.p".format(i), "rb") as f:
                 while True:
                     try:
-                        # dest[j] = pickle.load(f)
-                        # j += 1
                         dest.append(pickle.load(f))
                     except EOFError:
                         break
 
-        print('Number of elements {0} (zero: {1})'.format(len(dest), np.count_nonzero(dest==0)))
+        # print('Number of elements {0} (zero: {1})'.format(len(dest), np.count_nonzero(dest==0)))
 
             
         for item in dest:
-            # result = item.result
-            # patch = result["patch"]
-            # dx = result["dx"]
-            # delta_biased = result["field"]
-
             patch = item.patch
             dx = item.dx
             delta_biased = item.field
@@ -196,7 +189,7 @@ def main(path, level, patch_size):
             output_field[x_min:x_max, y_min:y_max, z_min:z_max] = delta_biased
 
         # Write the initial conditions
-        ics_dir = "{0}/ics_ramses_vbc/".format(ics.level_dir)
+        ics_dir = "{0}/ics_ramses_vbc/".format(ics[0].level_dir)
         if not os.path.isdir(ics_dir):
             os.mkdir(ics_dir)
         out_dir = "{0}/level_{1:03d}/".format(ics_dir, level)
@@ -213,12 +206,6 @@ if __name__ == "__main__":
     level = int(sys.argv[2])
     patch_size = float(sys.argv[3])
 
-    #try:
     main(path, level, patch_size)
-    # except Exception as e:
-    #     from seren3.analysis.parallel import mpi
-    #     mpi.msg("Caught exception (message): %s" % e.message)
-    #     mpi.msg(traceback.format_exc())
-    #     mpi.terminate(500, e=e)
 
     print("Done!")

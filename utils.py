@@ -67,6 +67,8 @@ def run_cicsass_lc(boxsize, z, rms_vbc_z1000, N=256):
 
     # Transpose to match original code
     vals = np.transpose(vals)
+    # and unpack
+    vals = [vals[0, :], vals[1, :], vals[2, :]]
 
     gc.collect() # Collect garbage
     
@@ -346,8 +348,8 @@ def compute_bias_lc(ics, vbc):
     # Baryon bias
     b_b = ps_vbcrecom[2] / ps_vbc0[2]
     # Wavenumber
-    k_bias = ps_vbcrecom[0] / ics.cosmo["h"]  # "h Mpc**-1"
-
+    k_bias = ps_vbcrecom[0] / ics.cosmo["h"]# "h Mpc**-1"
+    
     return k_bias, b_cdm, b_b
 
 
@@ -383,9 +385,9 @@ def apply_density_bias(ics, k_bias, b, N, delta_x=None):
         logx = np.log10(xx)
         logy = np.log10(yy)
         lin_interp = si.InterpolatedUnivariateSpline(logx, logy)
-        log_interp = lambda zz: np.power(
-            10.0, lin_interp(np.log10(zz)))
+        log_interp = lambda zz: np.power(10.0, lin_interp(np.log10(zz)))
         return log_interp
+
     f = log_interp1d(k_bias, b)
     b = f(k)
 
@@ -396,7 +398,9 @@ def apply_density_bias(ics, k_bias, b, N, delta_x=None):
 
     # Inverse FFT to compute the realisation
     delta_x = fft.ifftn(delta_k).real.reshape(shape)
+
     return delta_x
+
 
 def cube_positions(ics, n, N=None):
     cubes = []

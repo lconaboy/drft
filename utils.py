@@ -3,7 +3,7 @@ Utility functions to include drift velocity in grafIC ics by computing/convolvin
 power spectrum k dependent bias. Contains routines to run CICsASS
 """
 import numpy as np
-from py_vbc import run_pyvbc
+# from py_vbc import run_pyvbc
 
 def fft_sample_spacing(N, boxsize):
     from cosmology import _fft_sample_spacing

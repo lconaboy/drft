@@ -143,9 +143,6 @@ class Snapshot:
         z = z0
 
         with open(fname, "rb") as f:
-            # Seek past the header block to the initial point, then
-            # move along another z times to the z-origin
-            f.seek((size + (area + 8)*z), 0)
 
             # z counter
             iz = 0
@@ -161,35 +158,90 @@ class Snapshot:
                                    count=(n1 * n2)).reshape((n1, n2))
 
                 # y counter
-                iy = 0
-                for i2 in range(origin[1], origin[1] + N):
-                    # x counter
-                    ix = 0
-                    for i1 in range(origin[0], origin[0] + N):
-                        # How far along the respective axes
-                        y = int(i2 % n2)
-                        x = int(i1 % n1)
+                i2 = np.arange(origin[1], origin[1]+N)
+                i1 = np.arange(origin[0], origin[0]+N)
 
-                        # Reshape and store the patch data
+                y = np.mod(i2, n2, dtype=int)
+                x = np.mod(i1, n1, dtype=int)
 
-                        # Originally I had this written as patch[:, :,
-                        # iz] = ... but in order to get the same
-                        # results as seren3 I have to use patch[iz, :,
-                        # :] = ... -- I'm not entirely convinced by
-                        # this, because the way I see it we are moving
-                        # along z, not x, but I'll leave it for now to
-                        # be consistent (this also means that the data
-                        # indices are swapped from the way I would
-                        # assume)
+                xg, yg = np.meshgrid(x, y)
+
+                patch[iz, 0:N, 0:N] = data[yg, xg]
+
+                # iy = 0
+                # for i2 in range(origin[1], origin[1] + N):
+                #     # x counter
+                #     ix = 0
+                #     for i1 in range(origin[0], origin[0] + N):
+                #         # How far along the respective axes
+                #         y = int(i2 % n2)
+                #         x = int(i1 % n1)
+
+                #         # Reshape and store the patch data
+
+                #         # Originally I had this written as patch[:, :,
+                #         # iz] = ... but in order to get the same
+                #         # results as seren3 I have to use patch[iz, :,
+                #         # :] = ... -- I'm not entirely convinced by
+                #         # this, because the way I see it we are moving
+                #         # along z, not x, but I'll leave it for now to
+                #         # be consistent (this also means that the
+                #         # data[x, y] indices are swapped from the way
+                #         # I would assume)
                 
-                        patch[iz, iy, ix] = data[y, x]
+                #         patch[iz, iy, ix] = data[y, x]
 
-                        # Step forward
-                        ix += 1
-                    iy += 1
+                #         # Step forward
+                #         ix += 1
+                #     iy += 1
                 iz += 1
 
         return patch
+
+
+    def load_box(self):
+        origin = np.array([0, 0, 0])
+        N = self.N
+
+        area = self.area
+        size = self.size
+
+        fname = self.ic_fname()
+        
+        # Retrieve the number of points in each slice
+        (n1, n2, n3) = self.n
+
+        # Store the data in a patch
+        box = np.zeros(shape=(N, N, N), dtype=np.float32)
+
+        z0 = origin[2]
+        z = z0
+
+        with open(fname, "rb") as f:
+            # Seek past the header block to the initial point, then
+            # move along another z times to the z-origin
+            f.seek((size + (area + 8)*z), 0)
+
+            # The z-axis changes the slowest
+            for iz in range(N):
+                # Pick out the plane, and reshape to (x, y)
+                data = np.fromfile(f, dtype=np.float32,
+                                   count=(n1 * n2)).reshape((n1, n2))
+
+                # Originally I had this written as patch[:, :, iz] =
+                # ... but in order to get the same results as seren3 I
+                # have to use patch[iz, :, :] = ... -- I'm not
+                # entirely convinced by this, because the way I see it
+                # we are moving along z, not x, but I'll leave it for
+                # now to be consistent
+                box[iz, :, :] = data[origin[0]:origin[0]+N,
+                                     origin[1]:origin[1]+N]
+
+                # Skip along to the next plane
+                z += 1
+                f.seek((size + (area + 8)*z), 0)
+
+        return box
 
     
     def ic_fname(self):
@@ -343,9 +395,9 @@ def derive_vel(path, level, species):
     assert(s[0].N == s[1].N == s[2].N), 'velx, vely and velz files different sizes.'
     
     # Now extract the values from each snapshot
-    vx = s[0].load_patch([0, 0, 0], N)
-    vy = s[1].load_patch([0, 0, 0], N)
-    vz = s[2].load_patch([0, 0, 0], N)
+    vx = s[0].load_box()
+    vy = s[1].load_box()
+    vz = s[2].load_box()
 
     # Calculate velocity
     v = np.sqrt(vx**2 + vy**2 + vz**2)
@@ -388,8 +440,8 @@ def derive_vbc(path, level):
     N = vb.N
     
     # if so, load up the actual data
-    vb_data = vb.load_patch([0, 0, 0], N)
-    vc_data = vc.load_patch([0, 0, 0], N)
+    vb_data = vb.load_box()
+    vc_data = vc.load_box()
 
     # Now calculate v_bc
     vbc = vb_data - vc_data

@@ -72,6 +72,7 @@ def main(path, level, patch_size):
     if rank == 0:
         # Make sure vbc field exists on disk
         if not os.path.isfile(path+"level_{0:03d}/ic_vbc".format(level)):
+            print(msg.format(rank, 'Deriving vbc'))
             grafic_snapshot.derive_vbc(path, level)
         # Make patches dir
         if os.path.isdir("./patches"):
@@ -98,7 +99,6 @@ def main(path, level, patch_size):
 
         cubes, dx = vbc_utils.cube_positions(ics[0], ncubes, ics[0].N)
         cubes = np.array(cubes)
-        cubes += pad
         # Split the cubes into chunks that can be scattered to each processor 
         chunks = np.array_split(cubes, size)
     else:

@@ -87,16 +87,16 @@ def main(path, level, patch_size):
     ics = [grafic_snapshot.load_snapshot(path, level, field=field) for field in ['deltab', 'vbc']]
 
     pad = 8
-    div = np.array([float(i) for i in divisors(ics[0].N - 2*pad, mode='yield')])
-    idx = np.abs(((ics[0].N - 2*pad) / div) * ics[0].dx - patch_size).argmin()
+    div = np.array([float(i) for i in divisors(ics[0].N, mode='yield')])
+    idx = np.abs((ics[0].N / div) * ics[0].dx - patch_size).argmin()
     ncubes = int(div[idx])
 
     # Compute cube positions in cell units
     cubes = dx = None
     if rank == 0:
         print(msg.format(rank, "Using {0} cubes per dimension.".format(ncubes)))
-        # Try creating a padded region around the outside of the IC box
-        cubes, dx = vbc_utils.cube_positions(ics[0], ncubes, ics[0].N - 2*pad)
+
+        cubes, dx = vbc_utils.cube_positions(ics[0], ncubes, ics[0].N)
         cubes = np.array(cubes)
         cubes += pad
         # Split the cubes into chunks that can be scattered to each processor 

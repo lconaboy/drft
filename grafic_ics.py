@@ -139,36 +139,55 @@ class Snapshot:
         # Store the data in a patch
         patch = np.zeros(shape=(N, N, N), dtype=np.float32)
 
-        z0 = origin[2]
+        z0 = int(origin[2] % n3)
         z = z0
-        # print('z0 = {0}'.format(z0))
-        # print('size = {0}'.format(size))
-        # print('area = {0}'.format(area))
-        # print('origin = {0}'.format(origin))
-        # print('fname = {0}'.format(fname))
+
         with open(fname, "rb") as f:
             # Seek past the header block to the initial point, then
             # move along another z times to the z-origin
             f.seek((size + (area + 8)*z), 0)
 
+            # z counter
+            iz = 0
+
             # The z-axis changes the slowest
-            for iz in range(N):
+            for i3 in range(origin[2], origin[2] + N):
+                z = int(i3 % n3)
+
+                f.seek((size + (area + 8)*z), 0)
+    
                 # Pick out the plane, and reshape to (x, y)
                 data = np.fromfile(f, dtype=np.float32,
                                    count=(n1 * n2)).reshape((n1, n2))
 
-                # Originally I had this written as patch[:, :, iz] =
-                # ... but in order to get the same results as seren3 I
-                # have to use patch[iz, :, :] = ... -- I'm not
-                # entirely convinced by this, because the way I see it
-                # we are moving along z, not x, but I'll leave it for
-                # now to be consistent
-                patch[iz, :, :] = data[origin[0]:origin[0]+N,
-                                       origin[1]:origin[1]+N]
+                # y counter
+                iy = 0
+                for i2 in range(origin[1], origin[1] + N):
+                    # x counter
+                    ix = 0
+                    for i1 in range(origin[0], origin[0] + N):
+                        # How far along the respective axes
+                        y = int(i2 % n2)
+                        x = int(i1 % n1)
 
-                # Skip along to the next plane
-                z += 1
-                f.seek((size + (area + 8)*z), 0)
+                        # Reshape and store the patch data
+
+                        # Originally I had this written as patch[:, :,
+                        # iz] = ... but in order to get the same
+                        # results as seren3 I have to use patch[iz, :,
+                        # :] = ... -- I'm not entirely convinced by
+                        # this, because the way I see it we are moving
+                        # along z, not x, but I'll leave it for now to
+                        # be consistent (this also means that the data
+                        # indices are swapped from the way I would
+                        # assume)
+                
+                        patch[iz, iy, ix] = data[y, x]
+
+                        # Step forward
+                        ix += 1
+                    iy += 1
+                iz += 1
 
         return patch
 

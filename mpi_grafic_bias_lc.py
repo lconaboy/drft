@@ -166,7 +166,7 @@ def main(path, level, patch_size):
         for i in range(size):
             # Unpickle
             with open(r"patches/patch_{0}.p".format(i), "rb") as f:
-                print('Loading pickle {0}/{1}'.format(i, size))
+                print(msg.format(rank, 'Loading pickle {0}/{1}'.format(i, size)))
                 while True:
                     try:
                         dest.append(pickle.load(f))
@@ -196,7 +196,9 @@ def main(path, level, patch_size):
         if not os.path.isdir(out_dir):
             os.mkdir(out_dir)
 
+        print(msg.format(rank, 'Writing field'))
         ics[0].write_field(output_field, "deltab", out_dir=out_dir)
+        print(msg.format(rank, 'Wrote field'))
 
 if __name__ == "__main__":
     import sys

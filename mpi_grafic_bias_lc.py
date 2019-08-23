@@ -154,9 +154,6 @@ def main(path, level, patch_size):
     gc.collect()
     
     print(msg.format(rank, 'Done patches'))
-    
-    # Now wait for all processes to finish
-    comm.barrier()
 
 ############################## END OF WORK LOOP ###############################
     if rank == 0:
@@ -172,7 +169,7 @@ def main(path, level, patch_size):
         for i in range(size):
             # Unpickle
             with open(r"patches/patch_{0}.p".format(i), "rb") as f:
-                print('Loading pickle [{0}/{1}]'.format(i, size))
+                print('Loading pickle {0}/{1}'.format(i, size), end='\r')
                 while True:
                     try:
                         dest.append(pickle.load(f))
@@ -192,6 +189,8 @@ def main(path, level, patch_size):
             y_min, y_max = (int((patch[1]) - (dx / 2.)), int((patch[1]) + (dx / 2.)))
             z_min, z_max = (int((patch[2]) - (dx / 2.)), int((patch[2]) + (dx / 2.)))
 
+            print('bounds = [{0}, {1}, {2}]'.format([x_min, x_max], [y_min, y_max], [z_min, z_max]))
+            print('delta_biased = {0}'.format(delta_biased))
             # Place into output
             output_field[x_min:x_max, y_min:y_max, z_min:z_max] = delta_biased
 
@@ -203,6 +202,7 @@ def main(path, level, patch_size):
         if not os.path.isdir(out_dir):
             os.mkdir(out_dir)
 
+        print('np.all(output_field == 0) = {0}'.format(np.all(output_field == 0.0)))
         ics[0].write_field(output_field, "deltab", out_dir=out_dir)
 
 if __name__ == "__main__":

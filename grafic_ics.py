@@ -128,45 +128,60 @@ class Snapshot:
     def load_patch(self, origin, N):
 
         # Retrieve the number of bytes in each slice
-        area = self.area
+        # area = self.area
         size = self.size
 
         fname = self.ic_fname()
         
         # Retrieve the number of points in each slice
         (n1, n2, n3) = self.n
+        area = int(n1 * n2 * 4)
 
         # Store the data in a patch
-        patch = np.zeros(shape=(N, N, N), dtype=np.float32)
+        patch = np.zeros(shape=N, dtype=np.float32)
 
         z0 = int(origin[2] % n3)
         z = z0
+
+        print('N = {}'.format(N))
+        print('n = {}'.format(self.n))
 
         with open(fname, "rb") as f:
 
             # z counter
             iz = 0
+            ix = 0
 
             # The z-axis changes the slowest
-            for i3 in range(origin[2], origin[2] + N):
-                z = int(i3 % n3)
+            for i1 in range(origin[0], origin[0] + N[0]):
+                x = int(i1 % n1)
 
-                f.seek((size + (area + 8)*z), 0)
+                pos = size + (area + 8)*x
+                # print('pos = {}'.format((pos-size)/(area+8)))
+                f.seek(pos, 0)
     
                 # Pick out the plane, and reshape to (x, y)
-                data = np.fromfile(f, dtype=np.float32,
-                                   count=(n1 * n2)).reshape((n1, n2))
+                try:
+                    data = np.fromfile(f, dtype=np.float32,
+                                   count=(n2 * n3)).reshape((n2, n3))
+
+                except:
+                    print('x = {}'.format(x))
 
                 # y counter
-                i2 = np.arange(origin[1], origin[1]+N)
-                i1 = np.arange(origin[0], origin[0]+N)
+                i2 = np.arange(origin[1], origin[1]+N[1])
+                i3 = np.arange(origin[2], origin[2]+N[2])
+                # i1 = np.arange(origin[0], origin[0]+N[0])
 
                 y = np.mod(i2, n2, dtype=int)
-                x = np.mod(i1, n1, dtype=int)
+                # x = np.mod(i1, n1, dtype=int)
+                z = np.mod(i3, n3, dtype=int)
 
-                xg, yg = np.meshgrid(x, y)
+                yg, zg = np.meshgrid(y, z)
 
-                patch[iz, 0:N, 0:N] = data[yg, xg]
+                # This transpose to make the data fit into the array,
+                # need to check this
+                patch[ix, :,:] = data[yg, zg].T
 
                 # iy = 0
                 # for i2 in range(origin[1], origin[1] + N):
@@ -194,7 +209,7 @@ class Snapshot:
                 #         # Step forward
                 #         ix += 1
                 #     iy += 1
-                iz += 1
+                ix += 1
 
         return patch
 

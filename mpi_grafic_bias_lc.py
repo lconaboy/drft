@@ -88,9 +88,13 @@ def main(path, level, patch_size):
     ics = [grafic_snapshot.load_snapshot(path, level, field=field) for field in ['deltab', 'vbc']]
 
     pad = 8
-    div = np.array([float(i) for i in divisors(ics[0].N, mode='yield')])
-    idx = np.abs((ics[0].N / div) * ics[0].dx - patch_size).argmin()
-    ncubes = int(div[idx])
+
+    # Calculate the number of cubes for each dimension
+    ncubes = np.zeros(3)
+    for i in range(3):
+        div = np.array([float(i) for i in divisors(ics[0].n[i], mode='yield')])
+        idx = np.abs((ics[0].n[i] / div) * ics[0].dx - patch_size).argmin()
+        ncubes[i] = int(div[idx])
 
     # Compute cube positions in cell units
     cubes = dx = None
@@ -116,14 +120,20 @@ def main(path, level, patch_size):
     for i, patch in enumerate(patches):
 
         print(msg.format(rank, '{0}/{1}'.format(i+1, len(patches))))
-    
-        origin = np.array(patch - float(dx) / 2. - pad, dtype=np.int64)
-        dx_eps = float(dx) + float(2 * pad)
+
+        # Convert dx to float
+        dx = dx.astype(np.float32)
+        
+        origin = np.array(patch - dx / 2. - pad, dtype=np.int64)
+        dx_eps = dx + float(2 * pad)
+
+        # Convert dx_eps to int
+        dx_eps = dx_eps.astype(np.int32)
 
         delta = vbc = None
         if (P): print(msg.format(rank, "Loading patch: {0}").format(patch))
-        delta = ics[0].load_patch(origin, int(dx_eps))
-        vbc = ics[1].load_patch(origin, int(dx_eps))
+        delta = ics[0].load_patch(origin, dx_eps)
+        vbc = ics[1].load_patch(origin, dx_eps)
 
         # Compute the bias
         if (B): print(msg.format(rank, "Computing bias"))

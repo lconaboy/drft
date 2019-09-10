@@ -365,7 +365,10 @@ def apply_density_bias(ics, k_bias, b, N, delta_x=None):
     if delta_x is None:
         delta_x = ics
 
+    # The actual shape of the delta_x region
     shape = delta_x.shape
+    # The shape of the symmetric box
+    shape0 = (shape[0], shape[0], shape[0])
 
     boxsize = float(ics.boxsize) * \
         (float(N) / float(ics.N))
@@ -391,36 +394,49 @@ def apply_density_bias(ics, k_bias, b, N, delta_x=None):
     f = log_interp1d(k_bias, b)
     b = f(k)
 
-    delta_k = fft.fftn(delta_x)
+    # Pad the delta_x so that it occupies a full symmetric box
+    delta_x_padded = np.zeros(shape=shape0)
+    delta_x_padded[0:shape[0], 0:shape[1], 0:shape[2]] = delta_x
+
+    delta_k = fft.fftn(delta_x_padded)
 
     # Apply the bias
     delta_k *= np.sqrt(b.reshape(delta_k.shape))
 
     # Inverse FFT to compute the realisation
-    delta_x = fft.ifftn(delta_k).real.reshape(shape)
+    # delta_x = fft.ifftn(delta_k).real.reshape(shape)
+    delta_x = fft.ifftn(delta_k).real.reshape(shape0)
 
-    return delta_x
+    # Remove padding
+    delta_x1 = delta_x[0:dxs[0], 0:dxs[1], 0:dxs[2]]
+
+    return delta_x1
 
 
 def cube_positions(ics, n, N=None):
     cubes = []
     if N is None:
-        N = ics.N
+        # N = ics.N
+        N = ics.n
 
-    if (N % n != 0):
-        raise Exception(
-            "Cannot fit %d cubes into grid with size %d" % (n, N))
+    # if (N % n != 0):
+    #     raise Exception(
+    #         "Cannot fit %d cubes into grid with size %d" % (n, N))
 
+    if ~np.all(np.mod(n, N)):
+        raise Exception('Cannot fit {0} cubes in grid with size {1}'.format(n, N))
+    
     dx_cells = N / n
 
-    for i in range(n):
-        cen_i = dx_cells * (i + 0.5)
+    for i in range(int(n[0])):
+        cen_i = dx_cells[0] * (i + 0.5)
 
-        for j in range(n):
-            cen_j = dx_cells * (j + 0.5)
+        for j in range(int(n[1])):
+            cen_j = dx_cells[1] * (j + 0.5)
 
-            for k in range(n):
-                cen_k = dx_cells * (k + 0.5)
+            for k in range(int(n[2])):
+                cen_k = dx_cells[2] * (k + 0.5)
+
                 cubes.append([cen_i, cen_j, cen_k])
 
     return cubes, dx_cells

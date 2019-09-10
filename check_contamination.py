@@ -103,15 +103,18 @@ def check_cube(i_snap, cen=(0.5, 0.5, 0.5), l=0.025, snap_dir='.'):
     s = seren3.load_snapshot(snap_dir, i_snap)
 
     # Filter to a cube
-    sub = s[s.get_cube(cen, l)]
+    print('Filtering')
+    sub = s[s.get_sphere(cen, l/2)]
     # Filter to DM
     sub = sub.d
     # Extract mass and position values
+    print('Flattening')
     vals = sub[["pos", "mass"]].flatten()
     pos = vals["pos"]
     mass = vals["mass"]
 
     # Normalise the position to be between [0, 1]
+    print('Normalising')
     x_min = cen[0] - l/2.0
     x_max = cen[0] + l/2.0
     pos = (pos - x_min)/x_max

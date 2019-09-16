@@ -398,7 +398,7 @@ def apply_density_bias(ics, k_bias, b, N, delta_x=None):
 
     # Inverse FFT to compute the realisation
     delta_x = fft.ifftn(delta_k).real.reshape(shape)
-
+    
     return delta_x
 
 

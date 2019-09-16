@@ -404,13 +404,10 @@ def apply_density_bias(ics, k_bias, b, N, delta_x=None):
     delta_k *= np.sqrt(b.reshape(delta_k.shape))
 
     # Inverse FFT to compute the realisation
-    # delta_x = fft.ifftn(delta_k).real.reshape(shape)
-    delta_x = fft.ifftn(delta_k).real.reshape(shape0)
 
-    # Remove padding
-    delta_x1 = delta_x[0:dxs[0], 0:dxs[1], 0:dxs[2]]
-
-    return delta_x1
+    delta_x = fft.ifftn(delta_k).real.reshape(shape)
+    
+    return delta_x
 
 
 def cube_positions(ics, n, N=None):

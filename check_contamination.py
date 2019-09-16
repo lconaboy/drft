@@ -104,7 +104,7 @@ def check_cube(i_snap, cen=(0.5, 0.5, 0.5), l=0.025, snap_dir='.'):
 
     # Filter to a cube
     print('Filtering')
-    sub = s[s.get_sphere(cen, l/2)]
+    sub = s[s.get_cube(cen, l)]
     # Filter to DM
     sub = sub.d
     # Extract mass and position values
@@ -113,6 +113,9 @@ def check_cube(i_snap, cen=(0.5, 0.5, 0.5), l=0.025, snap_dir='.'):
     pos = vals["pos"]
     mass = vals["mass"]
 
+    # print('type(pos) = {0}'.format(type(pos)))
+    # print('dir(pos) = {0}'.format(dir(pos)))
+#    print('type(mass) = {0}'.format(type("mass")))
     # Normalise the position to be between [0, 1]
     print('Normalising')
     x_min = cen[0] - l/2.0
@@ -124,14 +127,13 @@ def check_cube(i_snap, cen=(0.5, 0.5, 0.5), l=0.025, snap_dir='.'):
     # Convert to refinement level
     mass = np.log2(mass)/3.0
 
-    # # Pick out the level wanted
-    # pos = pos[mass==level]
-    # mass = mass[mass==level]
+    # Convert both to arrays and return, since a SimArray is a wrapper
+    # around an ndarray, we should be able to use asarray to be memory
+    # efficient
+    print('Converting')
+    pos = np.asarray(pos.tolist(), dtype=float)
+    mass = np.asarray(mass.tolist(), dtype=float)
     
-    # Convert both to arrays and return
-    pos = np.array(pos.tolist(), dtype=float)
-    mass = np.array(mass.tolist(), dtype=float)
-
     return pos, mass
 
 
@@ -172,9 +174,8 @@ if __name__ == '__main__':
     o_range = np.arange(o_min, o_max+1, o_step, dtype=int)
     pos, mass = check_cube(o_min, l=rad)
 
-    vals = np.array([pos, mass])
-    
-    np.savetxt('vals.dat', vals)
+    np.savetxt('pos.dat', pos)
+    np.savetxt('mass_level.dat', mass)
     # # Set up MPI
     # comm = MPI.COMM_WORLD
     # size = comm.Get_size()
@@ -197,4 +198,3 @@ if __name__ == '__main__':
 
     # print('Done!')
 
-    vals = np.loadtxt('vals.dat')

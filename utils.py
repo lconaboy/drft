@@ -202,7 +202,7 @@ def compute_velocity_bias_lc(ics, vbc):
     z = ics.z
     zstart=1000
     rms = vbc_rms(vbc)
-    rms_recom = rms * (1001./z)
+    rms_recom = rms * (1001./(1.0 + z))
 
     ps_vbc0 = run_cicsass_lc(boxsize, z, 0.)
     ps_vbcrecom = run_cicsass_lc(boxsize, z, rms_recom)
@@ -246,7 +246,7 @@ def compute_cicsass(ics, vbc):
     # Compute vbc @ z=1000
     z = ics.z
     rms = vbc_rms(vbc)
-    rms_recom = rms * (1001./z)
+    rms_recom = rms * (1001./(1.0 + z))
 
         # Check for PS and run CICsASS if needed
     fname_vbc0 = vbc_ps_fname(0., z, boxsize)
@@ -270,7 +270,7 @@ def compute_bias(ics, vbc):
     # Compute vbc @ z=1000
     z = ics.z
     rms = vbc_rms(vbc)
-    rms_recom = rms * (1001./z)
+    rms_recom = rms * (1001./(1.0 + z))
 
     # Check for PS and run CICsASS if needed
     fname_vbc0 = vbc_ps_fname(0., z, boxsize)
@@ -333,7 +333,7 @@ def compute_bias_lc(ics, vbc):
     z = ics.z
     zstart = 1000
     rms = vbc_rms(vbc)
-    rms_recom = rms * (1001./z)
+    rms_recom = rms * (1001./(1.0 + z))
 
     ps_vbc0 = run_cicsass_lc(boxsize, z, 0.)
     ps_vbcrecom = run_cicsass_lc(boxsize, z, rms_recom)

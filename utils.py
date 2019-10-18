@@ -120,7 +120,7 @@ def compute_velocity_bias(ics, vbc):
     # Compute vbc @ z=1000
     z = ics.z
     rms = vbc_rms(vbc)
-    rms_recom = rms * (1001./z)
+    rms_recom = rms * (1001./(z + 1.0))
 
     # Check for PS and run CICsASS if necessary
     fname_vbc0 = vbc_ps_fname(0., z, boxsize)

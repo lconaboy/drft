@@ -394,10 +394,6 @@ def apply_density_bias(ics, k_bias, b, N, delta_x=None):
     f = log_interp1d(k_bias, b)
     b = f(k)
 
-    # Pad the delta_x so that it occupies a full symmetric box
-    delta_x_padded = np.zeros(shape=shape0)
-    delta_x_padded[0:shape[0], 0:shape[1], 0:shape[2]] = delta_x
-
     delta_k = fft.fftn(delta_x_padded)
 
     # Apply the bias

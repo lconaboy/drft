@@ -1,38 +1,13 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.fftpack as fft
-from grafic_ics import Snapshot
 
-omega_b = 0.049
-omega_m = 0.317
-omega_l = 0.683
-h = 0.673
-H0 = 100.0 * h
+from grafic_ics import Snapshot
+from cosmology import Cosmology
 
 # Load the overdensity ICs
 ic = Snapshot('test_ics/', 7, 'deltab')
 field = ic.load_box()
-
-# Plot each k vector
-# fig, axes = plt.subplots(1, 3, figsize=(18, 6))
-# im0 = axes[0].imshow(kx[:, :, 0])
-# cax0 = fig.colorbar(ax=axes[0], mappable=im0, fraction=0.046, pad=0.04)
-# axes[0].set_title('kx[:, :, 0]')
-# im1 = axes[1].imshow(ky[:, :, 0])
-# cax1 = fig.colorbar(ax=axes[1], mappable=im1, fraction=0.046, pad=0.04)
-# axes[1].set_title('ky[:, :, 0]')
-# im2 = axes[2].imshow(kz[0, :, :])
-# cax2 = fig.colorbar(ax=axes[2], mappable=im2, fraction=0.046, pad=0.04)
-# axes[2].set_title('kz[0, :, :]')
-# plt.savefig('k_vals.pdf')
-
-# Plot the magnitude of k
-# plt.figure()
-# plt.imshow(k[:, :, 0])
-# plt.colorbar()
-# plt.title('k[:, :, 0]')
-# plt.savefig('k_mod.pdf')
-# plt.show()
 
 # Fourier tranform of overdensity
 delta_k = fft.fftn(field)
@@ -50,10 +25,10 @@ class Continuity:
         self.a = 1.0 / (1.0 + z)   # Scale factor
         self.N = ic.N              # Number of samples
         self.dx = ic.dx            # Initial grid spacing
-        self.L = self.N * self.dx  # Box size
+        self.L = ic.boxsize        # Box size in Mpc
 
         # Calculate the relevant cosmological quantities
-        self.c = Cosmology(self.a)
+        self.c = Cosmology(self.a, params='planck2015')
 
         # Extract overdensity field and take the Fourier transform
         self.delta_x = ic.load_box()
@@ -80,10 +55,10 @@ class Continuity:
             Calculate the sample spacing in Fourier space, given some symmetric 3D 
             box in real space, with 1D grid point coordinates 'x'.
             """
-            self.kx = np.zeros(shape=(self.N,self.N,self.N))
-            self.ky = np.zeros(shape=(self.N,self.N,self.N))
-            self.kz = np.zeros(shape=(self.N,self.N,self.N))
-            NN = ( self.N*fft.fftfreq(self.N, 1.) ).astype("i")
+            self.kx = np.zeros(shape=(self.N, self.N, self.N))
+            self.ky = np.zeros(shape=(self.N, self.N, self.N))
+            self.kz = np.zeros(shape=(self.N, self.N, self.N))
+            NN = ( self.N*fft.fftfreq(self.N, 1.) ).astype(int)
             # LC - here I have swapped the order kx and kz
             for i in NN:
                     self.kz[i,:,:] = i
@@ -91,20 +66,19 @@ class Continuity:
                     self.kx[:,:,i] = i
 
             # LC - multiply all modes by scaling factor
-            fac = (2.0*np.pi / self.L)
-            self.kx *= fac
-            self.ky *= fac
-            self.kz *= fac
-            self.ki = [self.kx, self.ky, self.kz]
-            self.k = np.sqrt(self.kx**2. + self.ky**2. + self.kz**2.) * fac
+            self.fac = 2*np.pi / self.L
 
-        
+            self.k = np.sqrt(self.kx**2. + self.ky**2. + self.kz**2.)
+            self.k *= self.fac
+
+
+
     def unscaled_velocity(self):
         """
-        Realise the (unscaled) velocity field in Fourier space. See Dodelson
-        Eq. 9.18 for an expression; we factor out the time-dependent
-        quantities here. They can be added at a later stage.
-
+        Realise the (unscaled) velocity field in Fourier space. See
+        Dodelson Eq. 9.18 for an expression; we factor out the
+        time-dependent quantities here. They can be added at a later
+        stage.
         """
 
         # If the FFT has an even number of samples, the most negative frequency 
@@ -114,19 +88,19 @@ class Continuity:
         # conditions. As such, we can set the whole mode to be zero, make sure 
         # that it's pure imaginary, or use an odd number of samples. Different 
         # ways of dealing with this could change the answer!
-        if self.N % 2 == 0: # Even no. samples
+        # if self.N % 2 == 0: # Even no. samples
                 # Set highest (negative) freq. to zero
-                self.kx[self.kx == np.min(self.kx)] = 0.0
-                self.ky[self.ky == np.min(self.ky)] = 0.0
-                self.kz[self.kz == np.min(self.kz)] = 0.0
+                # self.kx[self.kx == np.min(self.kx)] = 0.0
+                # self.ky[self.ky == np.min(self.ky)] = 0.0
+                # self.kz[self.kz == np.min(self.kz)] = 0.0
 
         # Get squared k-vector in k-space (and factor in scaling from kx, ky, kz)
         k2 = self.k ** 2.0
 
         # Calculate components of A (the unscaled velocity)
-        Ax = 1j * self.delta_k * self.kx / k2  # * (2.0*np.pi/self.L) / k2
-        Ay = 1j * self.delta_k * self.ky / k2  # * (2.0*np.pi/self.L) / k2
-        Az = 1j * self.delta_k * self.kz / k2  # * (2.0*np.pi/self.L) / k2
+        Ax = 1j * self.delta_k * self.kx * self.fac / k2
+        Ay = 1j * self.delta_k * self.ky * self.fac / k2
+        Az = 1j * self.delta_k * self.kz * self.fac / k2
         Ax = np.nan_to_num(Ax)
         Ay = np.nan_to_num(Ay)
         Az = np.nan_to_num(Az)
@@ -142,17 +116,9 @@ class Continuity:
         Calculate the scaled velocity using the approximate expression for
         the continuity equation as in the draft
         """
-        # # Calculate the unscaled velocity
-        # self.velocity_k = self.unscaled_velocity()
-
         # Prefactor for the scaling
-        p1 = self.a * self.c.H_a * omega_m**0.6 * h
-        # p1 = self.c.H_a * omega_m**0.6
-        
-        # # Calculate the unscaled_velocity
-        # A = [(1j * self.delta_k * _k)/self.k**2 for _k in self.ki]
-        # A = np.nan_to_num(A)
-        # print(A.shape)
+        # p1 = self.a * self.c.H_a * omega_m**0.6
+        p1 = self.a * self.c.H_a * self.c.f_a
 
         # Now calculate the scaled velocity
         self.velocity_ks = [p1 * v for v in self.velocity_k]
@@ -165,7 +131,8 @@ class Continuity:
         """
         # # Calculate the unscaled velocity
         # self.velocity_k = self.unscaled_velocity()
-
+        
+        # omega_m = self.c.omega_ma
         # p1 and p2 are part of d/dt(D) / D
         p1 = - (3.0 * H0 * omega_m) / (self.c.E_a * self.a**3.0)
         p2 = 1 - (5.0 * self.a)/(3.0 * self.c.D_a)
@@ -178,42 +145,6 @@ class Continuity:
         self.velocity_ks = [p1 * p2 * v for v in self.velocity_k]
 
 
-class Cosmology:
-    def __init__(self, a):
-        # Calculate all the useful cosmological quantities at scale
-        # factor a
-        self.a = a
-        self.H_a = self.H(a)
-        self.E_a = self.E(a)
-        self.D_a = self.D(a)
-
-
-    def H(self, a):
-        return H0 * np.sqrt(omega_m/self.a**3 + omega_l)
-
-
-    def E(self, a):
-        return self.H(a) / H0
-
-
-    def D(self, a):
-        from scipy.integrate import quad
-        i = quad(lambda _a: 1 / (_a * self.E(_a)**3.0), 0.0, a)[0]
-
-        # Normalise?
-        # i0 = quad(lambda _a: 1 / (_a * self.E(_a)**3.0), 0.0, 1.0)[0]
-        # i /= i0
-
-        return (5.0 * omega_m * self.E(a) * i)/2.0 
-
-    
-    def a_to_z(self, a):
-        return (1.0/a - 1.0)
-
-
-    def z_to_a(self, z):
-        return 1.0/(1.0 + z)
-
 # Use the approximate or full continuty equation?
 approx = True
 
@@ -221,11 +152,15 @@ approx = True
 fn = 'full'
 if approx: fn = 'approx'
 
+# Calculate the velocity using the continutity equation
 c = Continuity(ic, z=200, approx=approx)
-v_k = c.velocity_ks
+
+# Take the real part of the IFFT, this is fine since the imaginary
+# parts are due to numerical noise and are ~1e-6
 v = [np.fft.ifftn(v_i).real for v_i in c.velocity_ks]
 v_m = [vx_music, vy_music, vz_music]
 
+# Fit a line to the values to check their relation
 vx_r = v[0][:, :, 0].ravel()
 vx_mr = vx_music[:, :, 0].ravel()
 
@@ -236,6 +171,11 @@ def y(x, m, c):
 
 popt, pcov = curve_fit(y, vx_r, vx_mr)
 
+
+"""
+Plotting
+"""
+
 fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(18, 6))
 im0 = axes[0].imshow(v[0][:, :, 0])
 plt.colorbar(ax=axes[0], mappable=im0, fraction=0.046, pad=0.04)
@@ -243,9 +183,9 @@ axes[0].set_title('vx[:, :, 0]')
 im1 = axes[1].imshow(vx_music[:, :, 0])
 plt.colorbar(ax=axes[1], mappable=im1, fraction=0.046, pad=0.04)
 axes[1].set_title(r'vx\_music[:, :, 0]')
-im2 = axes[2].imshow(v[0][:, :, 0]-vx_music[:, :, 0], cmap='jet')
+im2 = axes[2].imshow(np.log10(v[0][:, :, 0]/vx_music[:, :, 0]), cmap='hot')
 plt.colorbar(ax=axes[2], mappable=im2, fraction=0.046, pad=0.04)
-axes[2].set_title('vx-vx\_music')
+axes[2].set_title('log$_{10}$(vx/vx\_music)')
 plt.suptitle('{}'.format(fn))
 fig.tight_layout() 
 fig.savefig('velocity_slice_comparison_{}.pdf'.format(fn))
@@ -274,3 +214,4 @@ for i, ax in enumerate(axes.ravel()):
 plt.suptitle('{}'.format(fn))
 plt.savefig('continuity_{}.png'.format(fn), dpi=600)
 plt.show()
+

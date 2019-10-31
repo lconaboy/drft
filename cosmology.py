@@ -66,7 +66,7 @@ class Cosmology:
         from scipy.integrate import quad
         i = quad(lambda _a: 1 / (_a * self.E(_a))**3.0, self.a, 0.0)[0]
 
-        return (5.0 * self.p['omega_m'] * self.E_a * i)/2.0 
+        return 2.5 * self.p['omega_m'] * self.E_a * i 
 
 
     def f(self):

@@ -47,29 +47,32 @@ class Continuity:
 
 
     def set_fft_sample_spacing(self):
-            """
-            The following was originally authored by Phil Bull.
+        """
+        The following was originally authored by Phil Bull.
 
-            https://gitlab.com/cosmobubble/szclusters/tree/master
+        https://gitlab.com/cosmobubble/szclusters/tree/master
 
-            Calculate the sample spacing in Fourier space, given some symmetric 3D 
-            box in real space, with 1D grid point coordinates 'x'.
-            """
-            self.kx = np.zeros(shape=(self.N, self.N, self.N))
-            self.ky = np.zeros(shape=(self.N, self.N, self.N))
-            self.kz = np.zeros(shape=(self.N, self.N, self.N))
-            NN = ( self.N*fft.fftfreq(self.N, 1.) ).astype(int)
-            # LC - here I have swapped the order kx and kz
-            for i in NN:
-                    self.kz[i,:,:] = i
-                    self.ky[:,i,:] = i
-                    self.kx[:,:,i] = i
+        Calculate the sample spacing in Fourier space, given some symmetric 3D 
+        box in real space, with 1D grid point coordinates 'x'.
+        """
+        self.kx = np.zeros(shape=(self.N, self.N, self.N))
+        self.ky = np.zeros(shape=(self.N, self.N, self.N))
+        self.kz = np.zeros(shape=(self.N, self.N, self.N))
+        NN = (self.N * fft.fftfreq(self.N, 1.)).astype(int)
+        NNN = fft.fftfreq(self.N, self.dx / (2*np.pi))
+        # NNN = fft.fftfreq(self.N, self.dx)
 
-            # LC - multiply all modes by scaling factor
-            self.fac = 2*np.pi / self.L
+        # LC - here I have swapped the order kx and kz
+        for i, j in zip(NN, NNN):
+                self.kx[:,:,i] = j
+                self.ky[:,i,:] = j
+                self.kz[i,:,:] = j
 
-            self.k = np.sqrt(self.kx**2. + self.ky**2. + self.kz**2.)
-            self.k *= self.fac
+        # LC - multiply all modes by scaling factor
+        # self.fac = 2*np.pi / self.L
+
+        self.k = np.sqrt(self.kx**2. + self.ky**2. + self.kz**2.)
+        # self.k *= self.fac
 
 
 
@@ -98,9 +101,9 @@ class Continuity:
         k2 = self.k ** 2.0
 
         # Calculate components of A (the unscaled velocity)
-        Ax = 1j * self.delta_k * self.kx * self.fac / k2
-        Ay = 1j * self.delta_k * self.ky * self.fac / k2
-        Az = 1j * self.delta_k * self.kz * self.fac / k2
+        Ax = 1j * self.delta_k * self.kx / k2 # * self.fac / k2
+        Ay = 1j * self.delta_k * self.ky / k2 # * self.fac / k2
+        Az = 1j * self.delta_k * self.kz / k2 # * self.fac / k2
         Ax = np.nan_to_num(Ax)
         Ay = np.nan_to_num(Ay)
         Az = np.nan_to_num(Az)
@@ -117,7 +120,6 @@ class Continuity:
         the continuity equation as in the draft
         """
         # Prefactor for the scaling
-        # p1 = self.a * self.c.H_a * omega_m**0.6
         p1 = self.a * self.c.H_a * self.c.f_a
 
         # Now calculate the scaled velocity
@@ -129,24 +131,16 @@ class Continuity:
         Calculate the scaled velocity using the full expression for the
         continuity equation as in Iliev at al. (2007)
         """
-        # # Calculate the unscaled velocity
-        # self.velocity_k = self.unscaled_velocity()
-        
-        # omega_m = self.c.omega_ma
-        # p1 and p2 are part of d/dt(D) / D
-        p1 = - (3.0 * H0 * omega_m) / (self.c.E_a * self.a**3.0)
+        # p1 and p2 are part of d/dt(D) / D = p1*p2
+        p1 = - (3.0 * self.c.H0 * self.c.p['omega_m']) / (self.c.E_a * self.a**3.0)
         p2 = 1 - (5.0 * self.a)/(3.0 * self.c.D_a)
-        
-        # Calculate the unscaled_velocity
-        # A = [(1j * self.delta_k * _k)/self.k**2 for _k in self.ki]
 
         # Now calculate the scaled velocity
-        # self.velocity_ks = [p1 * p2 * np.nan_to_num(_A) for _A in A]
-        self.velocity_ks = [p1 * p2 * v for v in self.velocity_k]
+        self.velocity_ks = [p1 * p2 * self.a * v for v in self.velocity_k]
 
 
 # Use the approximate or full continuty equation?
-approx = True
+approx = False
 
 # For plots
 fn = 'full'

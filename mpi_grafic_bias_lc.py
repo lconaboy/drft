@@ -137,11 +137,11 @@ def main(path, level, patch_size):
 
         # Compute the bias
         if (B): print(msg.format(rank, "Computing bias"))
-        k_bias, b_cdm, b_b = vbc_utils.compute_bias_lc(ics[1], vbc)
+        k, b_c, b_b, b_vc, b_vb = vbc_utils.compute_bias(ics[1], vbc)
 
         # Convolve with field
         if (C): print(msg.format(rank, "Performing convolution"))
-        delta_biased = vbc_utils.apply_density_bias(ics[0], k_bias, b_b, delta.shape[0], delta_x=delta)
+        delta_biased = vbc_utils.apply_density_bias(ics[0], k, b_b, delta.shape[0], delta_x=delta)
 
         # Remove the padded region
         x_shape, y_shape, z_shape = delta_biased.shape
@@ -169,31 +169,28 @@ def main(path, level, patch_size):
     if rank == 0:
         import os
         # Write new ICs
-
         output_field = np.zeros(ics[0].n)
 
         dest = []
         for i in range(size):
             # Unpickle
             with open(r"patches/patch_{0}.p".format(i), "rb") as f:
-                print(msg.format(rank, 'Loading pickle {0}/{1}'.format(i, size)))
+                print(msg.format(rank, 'Loading pickle {0}/{1}'.format(i+1, size)))
                 while True:
                     try:
                         dest.append(pickle.load(f))
                     except EOFError:
                         break
 
-        # print('Number of elements {0} (zero: {1})'.format(len(dest), np.count_nonzero(dest==0)))
-
         for item in dest:
             patch = item.patch
             dx = item.dx
             delta_biased = item.field
-            
+
             # Bounds of this patch
-            x_min, x_max = (int((patch[0]) - (dx / 2.)), int((patch[0]) + (dx / 2.)))
-            y_min, y_max = (int((patch[1]) - (dx / 2.)), int((patch[1]) + (dx / 2.)))
-            z_min, z_max = (int((patch[2]) - (dx / 2.)), int((patch[2]) + (dx / 2.)))
+            x_min, x_max = (int((patch[0]) - (dx[0] / 2.)), int((patch[0]) + (dx[0] / 2.)))
+            y_min, y_max = (int((patch[1]) - (dx[1] / 2.)), int((patch[1]) + (dx[1] / 2.)))
+            z_min, z_max = (int((patch[2]) - (dx[2] / 2.)), int((patch[2]) + (dx[2] / 2.)))
 
             # Place into output
             output_field[x_min:x_max, y_min:y_max, z_min:z_max] = delta_biased
@@ -209,6 +206,7 @@ def main(path, level, patch_size):
         print(msg.format(rank, 'Writing field'))
         ics[0].write_field(output_field, "deltab", out_dir=out_dir)
         print(msg.format(rank, 'Wrote field'))
+
 
 if __name__ == "__main__":
     import sys

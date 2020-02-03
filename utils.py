@@ -3,7 +3,7 @@ Utility functions to include drift velocity in grafIC ics by computing/convolvin
 power spectrum k dependent bias. Contains routines to run CICsASS
 """
 import numpy as np
-# from py_vbc import run_pyvbc
+from py_vbc import run_pyvbc
 
 def fft_sample_spacing(N, boxsize):
     from cosmology import _fft_sample_spacing
@@ -258,66 +258,66 @@ def compute_cicsass(ics, vbc):
         exit_code = run_cicsass(boxsize, z, rms_recom, fname_vbcrecom)
 
 
-def compute_bias(ics, vbc):
-    """ Calculate the bias to the density power spectrum assuming
-    COHERENT vbc at z=1000. """
-    import os, time
+# def compute_bias(ics, vbc):
+#     """ Calculate the bias to the density power spectrum assuming
+#     COHERENT vbc at z=1000. """
+#     import os, time
    
-    # Compute size of grid and boxsize (for this patch)
-    N = vbc.shape[0]
-    boxsize = ics.boxsize * (float(N) / float(ics.N))  # "Mpc a h**-1"
+#     # Compute size of grid and boxsize (for this patch)
+#     N = vbc.shape[0]
+#     boxsize = ics.boxsize * (float(N) / float(ics.N))  # "Mpc a h**-1"
 
-    # Compute vbc @ z=1000
-    z = ics.z
-    rms = vbc_rms(vbc)
-    rms_recom = rms * (1001./(1.0 + z))
+#     # Compute vbc @ z=1000
+#     z = ics.z
+#     rms = vbc_rms(vbc)
+#     rms_recom = rms * (1001./(1.0 + z))
 
-    # Check for PS and run CICsASS if needed
-    fname_vbc0 = vbc_ps_fname(0., z, boxsize)
-    if not os.path.isfile(fname_vbc0):
-        exit_code = run_cicsass(boxsize, z, 0., fname_vbc0)
+#     # Check for PS and run CICsASS if needed
+#     fname_vbc0 = vbc_ps_fname(0., z, boxsize)
+#     if not os.path.isfile(fname_vbc0):
+#         exit_code = run_cicsass(boxsize, z, 0., fname_vbc0)
 
-    fname_vbcrecom = vbc_ps_fname(rms_recom, z, boxsize)
-    if not os.path.isfile(fname_vbcrecom):
-        exit_code = run_cicsass(boxsize, z, rms_recom, fname_vbcrecom)
+#     fname_vbcrecom = vbc_ps_fname(rms_recom, z, boxsize)
+#     if not os.path.isfile(fname_vbcrecom):
+#         exit_code = run_cicsass(boxsize, z, rms_recom, fname_vbcrecom)
 
-    # Load the power spectra and compute the bias
-    # LC - might be too quick for CICASS, check for empty files
-    ps_vbc0 = np.loadtxt(fname_vbc0, unpack=True)
-    ps_vbcrecom = np.loadtxt(fname_vbcrecom, unpack=True)
-    count = 0
-    while ((len(ps_vbc0) == 0) or (len(ps_vbcrecom) == 0)):
-        count += 1
-        if count > 10:
-            raise Exception("Reached sleep limit. File still empty.")
-            print("Caught exception (fname_vbc0): {0}".format(fname_vbc0))
-            print("Caught exception (fname_vbcrecom): {0}".format(fname_vbcrecom))
-        time.sleep(5)
-        ps_vbc0 = np.loadtxt(fname_vbc0, unpack=True)
-        ps_vbcrecom = np.loadtxt(fname_vbcrecom, unpack=True)
+#     # Load the power spectra and compute the bias
+#     # LC - might be too quick for CICASS, check for empty files
+#     ps_vbc0 = np.loadtxt(fname_vbc0, unpack=True)
+#     ps_vbcrecom = np.loadtxt(fname_vbcrecom, unpack=True)
+#     count = 0
+#     while ((len(ps_vbc0) == 0) or (len(ps_vbcrecom) == 0)):
+#         count += 1
+#         if count > 10:
+#             raise Exception("Reached sleep limit. File still empty.")
+#             print("Caught exception (fname_vbc0): {0}".format(fname_vbc0))
+#             print("Caught exception (fname_vbcrecom): {0}".format(fname_vbcrecom))
+#         time.sleep(5)
+#         ps_vbc0 = np.loadtxt(fname_vbc0, unpack=True)
+#         ps_vbcrecom = np.loadtxt(fname_vbcrecom, unpack=True)
 
-    # Should have same lenghts if finished writing
-    count = 0
-    try:
-        while len(ps_vbcrecom[1]) != len(ps_vbc0[1]):
-            count += 1
-            if count > 10:
-                raise Exception("Reached sleep limit. Filesizes still differ")
-            time.sleep(5)
-            ps_vbc0 = np.loadtxt(fname_vbc0, unpack=True)
-            ps_vbcrecom = np.loadtxt(fname_vbcrecom, unpack=True)
-    except Exception as e:
-        print("Caught exception (fname_vbc0): {0}".format(fname_vbc0))
-        print("Caught exception (fname_vbcrecom): {0}".format(fname_vbcrecom))
+#     # Should have same lenghts if finished writing
+#     count = 0
+#     try:
+#         while len(ps_vbcrecom[1]) != len(ps_vbc0[1]):
+#             count += 1
+#             if count > 10:
+#                 raise Exception("Reached sleep limit. Filesizes still differ")
+#             time.sleep(5)
+#             ps_vbc0 = np.loadtxt(fname_vbc0, unpack=True)
+#             ps_vbcrecom = np.loadtxt(fname_vbcrecom, unpack=True)
+#     except Exception as e:
+#         print("Caught exception (fname_vbc0): {0}".format(fname_vbc0))
+#         print("Caught exception (fname_vbcrecom): {0}".format(fname_vbcrecom))
 
-    #CDM bias
-    b_cdm = ps_vbcrecom[1] / ps_vbc0[1]
-    # Baryon bias
-    b_b = ps_vbcrecom[2] / ps_vbc0[2]
-    # Wavenumber
-    k_bias = ps_vbcrecom[0] / ics.cosmo["h"]
+#     #CDM bias
+#     b_cdm = ps_vbcrecom[1] / ps_vbc0[1]
+#     # Baryon bias
+#     b_b = ps_vbcrecom[2] / ps_vbc0[2]
+#     # Wavenumber
+#     k_bias = ps_vbcrecom[0] / ics.cosmo["h"]
 
-    return k_bias, b_cdm, b_b
+#     return k_bias, b_cdm, b_b
 
 
 def compute_bias_lc(ics, vbc):
@@ -406,9 +406,50 @@ def apply_density_bias(ics, k_bias, b, N, delta_x=None):
     return delta_x
 
 
+def compute_bias(ics, vbc, zstart=1000, kmin=0.1, kmax=10000, n=100, delta=False):
+    """
+    Computes the bias to ~both~ density and velocity fields. Assumes v_bc is 
+    constant at z=zstart.
+
+    :param ics:
+        (Snapshot)
+        Snapshot object containing grafic ICs
+ 
+    :param vbc:
+        (array)
+        Array containing the v_bc (i.e. |v_b - v_c|) field.
+    """
+    # Compute size of grid and boxsize
+    N = vbc.shape[0]
+    boxsize = float(ics.boxsize) * (float(N) / float(ics.N))
+
+    # v_bc redshifts away, so calculate the v_bc at z=zstart
+    z = ics.z
+    zstart=1000
+    rms = vbc_rms(vbc)
+    rms_recom = rms * (1001./(1.0 + z))
+    
+    # Boxsize doesn't make a difference when calculating the power
+    # spectra using py_vbc. The power spectrum tuple contains (p_c, p_b, p_vc,
+    # p_vb) and k is in units of Mpc^-1.
+    k, ps_vbc0 = run_pyvbc(vbc=0.0, zstart=zstart, zend=z, dz=3, kmin=kmin,
+                           kmax=kmax, n=n, delta=delta)
+    k, ps_vbcrecom = run_pyvbc(vbc=rms_recom, zstart=zstart, zend=z, dz=3, kmin=kmin,
+                               kmax=kmax, n=n, delta=delta)
+
+    # Calculate the biases
+    b_c = ps_vbcrecom[0] / ps_vbc0[0]
+    b_b = ps_vbcrecom[1] / ps_vbc0[1]
+    b_vc = ps_vbcrecom[2] / ps_vbc0[2]
+    b_vb = ps_vbcrecom[3] / ps_vbc0[3]
+
+    return k, b_c, b_b, b_vc, b_vb
+
+
 def cube_positions(ics, n, N=None):
     cubes = []
     if N is None:
+        # Beware that ics.n is a tuple and ics.N is an int!
         # N = ics.N
         N = ics.n
 

@@ -27,7 +27,7 @@ class Cosmology:
         assert (a >= 0.0) and (a <= 1.0), 'Scale factor outside [0.0, 1.0]'
         self.a = a
 
-        # Instantiate some parameters
+        # Instantiate the parameters
         self.p = self.parameters(params)
 
         # Calculate all the useful cosmological quantities at scale
@@ -76,8 +76,8 @@ class Cosmology:
         e.g. Lahav et al. (1991).
         
         """
-        omega = (self.H0 / self.H_a)**2 * (self.a ** -3)  * self.p['omega_m']
-
+        omega = self.p['omega_m'] / self.a**3 / self.E_a**2
+        
         return omega ** 0.6
 
 
@@ -90,20 +90,25 @@ class Cosmology:
 
 
     def parameters(self, params):
-        if params == 'planck2015':
-            return {'omega_m': 0.3156,
-                    'omega_b': 0.04917,
-                    'omega_l': 0.6844,
-                    'h': 0.6727}
+        if type(params).__name__ == 'str':
+            if params == 'planck2015':
+                return {'omega_m': 0.3156,
+                        'omega_b': 0.04917,
+                        'omega_l': 0.6844,
+                        'h': 0.6727}
 
-        elif params == 'planck2018':
-            return {'omega_m': 0.317,
-                    'omega_b': 0.049,
-                    'omega_l': 0.683,
-                    'h': 0.673,
-                    'ns': 0.965,
-                    's8': 0.812,
-                    'As': 2.10e-9}
+            elif params == 'planck2018':
+                return {'omega_m': 0.317,
+                        'omega_b': 0.049,
+                        'omega_l': 0.683,
+                        'h': 0.673,
+                        'ns': 0.965,
+                        's8': 0.812,
+                        'As': 2.10e-9}
+        else:
+            return {'omega_m': params[0],
+                    'omega_l': params[1],
+                    'h': params[2]}
 
 ################################################################################
 ###############################  OLD BELOW HERE  ###############################

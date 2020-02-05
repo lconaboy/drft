@@ -1,121 +1,222 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import scipy.fftpack as fft
+# import scipy.fftpack as fft
+import numpy.fft as fft
 
-from grafic_ics import Snapshot
+# from grafic_ics import Snapshot
 from cosmology import Cosmology
 
-# Load the overdensity ICs
-ic = Snapshot('test_ics/', 7, 'deltab')
-field = ic.load_box()
-
-# Fourier tranform of overdensity
-delta_k = fft.fftn(field)
-
-# Compare to original fields, should be identical
-vx_music = Snapshot('test_ics/', 7, 'velbx').load_box()
-vy_music = Snapshot('test_ics/', 7, 'velby').load_box()
-vz_music = Snapshot('test_ics/', 7, 'velbz').load_box()
-v_music = np.sqrt(vx_music**2 + vy_music**2 + vz_music**2)
-
 class Continuity:
-    def __init__(self, ic, z, approx=False):
+    def __init__(self, ic, tf_path=None, params=None, approx=False, real=True):
+        """
+        Class to calculate peculiar velocities from overdensities using
+        the continuity equation
+
+        :param ic: ic_deltab file, created using grafic_ics
+        :type ic: Snapshot object, created using grafic_ics
+        :param tf_path: path to CAMB transfer functions used to generate ICs,
+                        otherwise assume that transfer functions/fitting
+                        functions with the same amplitude for baryons and dark
+                        matter perturbations are used
+        :param params: either None, to get parameters from Snapshot object or 
+                       string to use defined parameters
+        :type ic: None or str
+        :param approx: whether to use the approximate or full version of the 
+                       continuity equation
+        :type approx: bool
+        :param real: whether to use a real FFT or regular FFT
+        :type real: bool
+        :returns: 
+        :rtype:
+
+        """
+        
         # Set up some initial constants
-        self.z = z                 # Redshift
-        self.a = 1.0 / (1.0 + z)   # Scale factor
+        self.z = ic.cosmo['z']     # Redshift
+        self.a = ic.cosmo['aexp']  # Scale factor
         self.N = ic.N              # Number of samples
         self.dx = ic.dx            # Initial grid spacing
         self.L = ic.boxsize        # Box size in Mpc
+        self.tf_path = tf_path     # Path to CAMB TFs
 
-        # Calculate the relevant cosmological quantities
-        self.c = Cosmology(self.a, params='planck2015')
+        if params is None:
+            # Get parameters from grafic header
+            omega_m = ic.cosmo['omega_m']
+            omega_l = ic.cosmo['omega_l']
+            h = ic.cosmo['h']
+            
+            # Collect parameters to pass to Cosmology
+            params = [omega_m, omega_l, h]
+            
+            # Calculate the relevant cosmological quantities
+            self.c = Cosmology(self.a, params=params)
+        else:
+            assert type(params).__name__ == 'str', 'To get parameters from the grafic file set params=None, otherwise specify cosmology with a string'
+            self.c = Cosmology(self.a, params=params)
 
         # Extract overdensity field and take the Fourier transform
+        # assert ic.field == 'deltab', 'Should be looking at deltab field'
         self.delta_x = ic.load_box()
-        self.delta_k = fft.fftn(self.delta_x)
+
+        print('mean of delta_x', np.mean(self.delta_x))
+
+        # Use real FFT? \delta(x) should be purely real, so should be
+        # fine to use RFFT.
+        self.real = real
+        if self.real:
+            self.delta_k = fft.rfftn(self.delta_x)
+        else:
+            self.delta_k = fft.fftn(self.delta_x)
 
         # Calculate the FFT sample spacing
-        self.set_fft_sample_spacing()
+        self.fft_sample_spacing()
 
-        # Compute the velocities
-        self.unscaled_velocity()
+        # Generate the TF ratios
+        self.transfer_functions()
         
+        # Compute the unscaled velocities
+        self.unscaled_velocity()
+
+        # Scale the velocities using the appropriate method
         if approx:
             self.scaled_velocity_approx()
         else:
             self.scaled_velocity_full()
 
+        # Transform to real velocities
+        self.realise_velocity()
 
-    def set_fft_sample_spacing(self):
+
+    def fft_sample_spacing(self):
         """
-        The following was originally authored by Phil Bull.
-
-        https://gitlab.com/cosmobubble/szclusters/tree/master
-
-        Calculate the sample spacing in Fourier space, given some symmetric 3D 
-        box in real space, with 1D grid point coordinates 'x'.
+        Calculates the sample spacing for a Fourier transform. If RFFT is
+        used (real=True), then the last axis contains half as many
+        components as the other two. Calculates self.k_min
+        (fundamental mode) and self.k_max (Nyquist frequency).
         """
-        self.kx = np.zeros(shape=(self.N, self.N, self.N))
-        self.ky = np.zeros(shape=(self.N, self.N, self.N))
-        self.kz = np.zeros(shape=(self.N, self.N, self.N))
-        NN = (self.N * fft.fftfreq(self.N, 1.)).astype(int)
-        NNN = fft.fftfreq(self.N, self.dx / (2*np.pi))
-        # NNN = fft.fftfreq(self.N, self.dx)
 
-        # LC - here I have swapped the order kx and kz
-        for i, j in zip(NN, NNN):
-                self.kx[:,:,i] = j
-                self.ky[:,i,:] = j
-                self.kz[i,:,:] = j
+        # Calculate the fundamental and Nyquist frequencies
+        self.k_min = 2*np.pi / self.L
+        self.k_max = np.pi / self.dx
 
-        # LC - multiply all modes by scaling factor
-        # self.fac = 2*np.pi / self.L
+        # Sample spacing in real space
+        # d = self.dx / (2*np.pi)
+        d = 1.0 / (self.k_min * self.N)
 
-        self.k = np.sqrt(self.kx**2. + self.ky**2. + self.kz**2.)
-        # self.k *= self.fac
+        # Frequencies along one axis, for a full FFT
+        self.k_lin = fft.fftfreq(self.N, d=d)
+ 
+        print('max abs(k_lin)', np.max(np.abs(self.k_lin)))
+        print('k_max', self.k_max)
+        
+        if self.real:
+            # Frequencies along the half axis, for a real FFT
+            self.k_rlin = fft.rfftfreq(self.N, d=d)
+        else:
+            self.k_rlin = self.k_lin
+
+        # Generate grid of k values, for use as the vector later
+        self.kx, self.ky, self.kz = np.meshgrid(self.k_lin, self.k_lin, self.k_rlin)
+
+        # Magnitude of k values at each point
+        self.k2 = self.kx**2. + self.ky**2. + self.kz**2.
+        self.k = np.sqrt(self.k2)
 
 
+    def transfer_functions(self, species='b'):
+        """
+        Interpolate CAMB transfer functions to calculate the offset factor
+        for two-component fluids
+        """
+        from scipy.interpolate import interp1d
 
+        if self.tf_path is not None:
+            # TODO - generalise for older versions of CAMB i.e. different
+            # number of columns
+            kh, tc, tb, tt = np.loadtxt(self.tf_path, unpack=True, usecols=(0, 1, 2, 6))
+            # Try using velocity TFs
+            kh, tc, tb = np.loadtxt(self.tf_path, unpack=True, usecols=(0, 10, 11))
+            tt = ((self.c.p['omega_m'] - self.c.p['omega_b'])/self.c.p['omega_m'] * tc) + (self.c.p['omega_b']/self.c.p['omega_m'] * tb)
+
+            # Convert kh from h/Mpc to 1/Mpc
+            k = kh * self.c.p['h']
+
+            # Generate splines of TFs
+            tc_spline = interp1d(k, tc)  # CDM
+            tb_spline = interp1d(k, tb)  # baryons
+            tt_spline = interp1d(k, tt)  # total
+
+            k_lin = self.k_lin
+            k_rlin = self.k_rlin
+
+            # Set zero k values to very small
+            k_lin[0] = 1.001*min(k)
+            k_rlin[0] = 1.001*min(k)
+            # Also take absolute values of k
+            k_lin = np.abs(k_lin)
+            k_rlin = np.abs(k_rlin)
+
+            # Calculate the values at the sampled k-values
+            tc_kl = tc_spline(k_lin)
+            tc_krl = tc_spline(k_rlin)
+            tb_kl = tb_spline(k_lin)
+            tb_krl = tb_spline(k_rlin)
+            tt_kl = tt_spline(k_lin)
+            tt_krl = tt_spline(k_rlin)
+
+            # Calculate the ratios
+            if species == 'b':
+                # ratio_l = tb_kl/tt_kl
+                # ratio_l = tc_kl - tb_kl
+                ratio_l = np.mean(tb_kl/tt_kl)
+                # ratio_l = np.mean(tb/tt)
+                # ratio_rl = tb_krl/tt_krl
+                # ratio_rl = tc_krl - tb_krl
+                ratio_rl = np.mean(tb_krl/tt_krl)
+                # ratio_rl = np.mean(tb/tt)
+            else:
+                # ratio_l = np.mean(tc_kl/tt_kl)
+                ratio_l = np.mean(tc/tt)
+                # ratio_rl = np.mean(tc_krl/tt_krl)
+                ratio_rl = np.mean(tc/tt)
+
+
+        else:
+            # If CAMB TFs aren't used then the ratio between TFs is just one
+            ratio_l = 1.0 # np.ones(len(self.k_lin))
+            ratio_rl = 1.0 # np.ones(len(self.k_rlin))
+
+        # Now generate the grid of values
+        # self.rx, self.ry, self.rz = np.meshgrid(ratio_l, ratio_l, ratio_rl)
+        self.rx, self.ry, self.rz = (ratio_l, ratio_l, ratio_rl)
+        # print(self.rx)
+        # print(self.ry)
+        # print(self.rz)
+    
     def unscaled_velocity(self):
         """
-        Realise the (unscaled) velocity field in Fourier space. See
-        Dodelson Eq. 9.18 for an expression; we factor out the
-        time-dependent quantities here. They can be added at a later
-        stage.
+        Calculate the common factor to the velocities i.e.
+
+        v \propto i * \delta_k * k / k^2
+
         """
+        # Components of the velocity field without any cosmological
+        # quantities being involved
+        vx = 1j * self.delta_k * self.kx / self.k2
+        vy = 1j * self.delta_k * self.ky / self.k2
+        vz = 1j * self.delta_k * self.kz / self.k2
 
-        # If the FFT has an even number of samples, the most negative frequency 
-        # mode must have the same value as the most positive frequency mode. 
-        # However, when multiplying by 'i', allowing this mode to have a 
-        # non-zero real part makes it impossible to satisfy the reality 
-        # conditions. As such, we can set the whole mode to be zero, make sure 
-        # that it's pure imaginary, or use an odd number of samples. Different 
-        # ways of dealing with this could change the answer!
-        # if self.N % 2 == 0: # Even no. samples
-                # Set highest (negative) freq. to zero
-                # self.kx[self.kx == np.min(self.kx)] = 0.0
-                # self.ky[self.ky == np.min(self.ky)] = 0.0
-                # self.kz[self.kz == np.min(self.kz)] = 0.0
+        # Above, v(k=0) will be NaN, so convert any NaNs to zeros
+        vx = np.nan_to_num(vx)
+        vy = np.nan_to_num(vy)
+        vz = np.nan_to_num(vz)
 
-        # Get squared k-vector in k-space (and factor in scaling from kx, ky, kz)
-        k2 = self.k ** 2.0
-
-        # Calculate components of A (the unscaled velocity)
-        Ax = 1j * self.delta_k * self.kx / k2 # * self.fac / k2
-        Ay = 1j * self.delta_k * self.ky / k2 # * self.fac / k2
-        Az = 1j * self.delta_k * self.kz / k2 # * self.fac / k2
-        Ax = np.nan_to_num(Ax)
-        Ay = np.nan_to_num(Ay)
-        Az = np.nan_to_num(Az)
-        self.velocity_k = (Ax, Ay, Az)
+        # Return velocities
+        self.velocity_k = [vx, vy, vz]
 
 
     def scaled_velocity_approx(self):
         """
-        The following was originally authored by Phil Bull.
-
-        https://gitlab.com/cosmobubble/szclusters/tree/master
-
         Calculate the scaled velocity using the approximate expression for
         the continuity equation as in the draft
         """
@@ -139,73 +240,13 @@ class Continuity:
         self.velocity_ks = [p1 * p2 * self.a * v for v in self.velocity_k]
 
 
-# Use the approximate or full continuty equation?
-approx = False
-
-# For plots
-fn = 'full'
-if approx: fn = 'approx'
-
-# Calculate the velocity using the continutity equation
-c = Continuity(ic, z=200, approx=approx)
-
-# Take the real part of the IFFT, this is fine since the imaginary
-# parts are due to numerical noise and are ~1e-6
-v = [np.fft.ifftn(v_i).real for v_i in c.velocity_ks]
-v_m = [vx_music, vy_music, vz_music]
-
-# Fit a line to the values to check their relation
-vx_r = v[0][:, :, 0].ravel()
-vx_mr = vx_music[:, :, 0].ravel()
-
-from scipy.optimize import curve_fit
-
-def y(x, m, c):
-    return m*x + c
-
-popt, pcov = curve_fit(y, vx_r, vx_mr)
-
-
-"""
-Plotting
-"""
-
-fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(18, 6))
-im0 = axes[0].imshow(v[0][:, :, 0])
-plt.colorbar(ax=axes[0], mappable=im0, fraction=0.046, pad=0.04)
-axes[0].set_title('vx[:, :, 0]')
-im1 = axes[1].imshow(vx_music[:, :, 0])
-plt.colorbar(ax=axes[1], mappable=im1, fraction=0.046, pad=0.04)
-axes[1].set_title(r'vx\_music[:, :, 0]')
-im2 = axes[2].imshow(np.log10(v[0][:, :, 0]/vx_music[:, :, 0]), cmap='hot')
-plt.colorbar(ax=axes[2], mappable=im2, fraction=0.046, pad=0.04)
-axes[2].set_title('log$_{10}$(vx/vx\_music)')
-plt.suptitle('{}'.format(fn))
-fig.tight_layout() 
-fig.savefig('velocity_slice_comparison_{}.pdf'.format(fn))
-plt.show()
-
-labels = ['x', 'y', 'z']
-fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(18, 6))
-
-for i, ax in enumerate(axes.ravel()):
-    v_r = v[i].ravel()
-    v_mr = v_m[i].ravel()
-
-    popt, pcov = curve_fit(y, v_mr, v_r)
-    xmin = np.min(v_mr)
-    xmax = np.max(v_mr)
-
-    x1 = [xmin, xmax]
-    y1 = [y(xmin, popt[0], popt[1]), y(xmax, popt[0], popt[1])]
-    
-    ax.plot(v_mr[::100], v_r[::100], 'kx', label='__nolabel__')
-    ax.plot(x1, y1, c='seagreen', label='y = {0:3.4f}x + {1:3.4f}'.format(popt[0], popt[1]))
-    ax.set_title(labels[i])
-    ax.legend()
-    ax.set_xlabel('music')
-    ax.set_ylabel('continuity')
-plt.suptitle('{}'.format(fn))
-plt.savefig('continuity_{}.png'.format(fn), dpi=600)
-plt.show()
-
+    def realise_velocity(self):
+        """
+        Transform the velocity field from Fourier space to real space
+        """
+        if self.real:
+            self.velocity_r = [fft.irfftn(v) for v in self.velocity_ks]
+            # self.velocity_r = [np.nan_to_num(v) for v in self.velocity_r]
+        else:
+            self.velocity_r = [fft.ifftn(v).real for v in self.velocity_ks]
+            

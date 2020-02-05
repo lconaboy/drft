@@ -41,9 +41,10 @@ class Result(object):
     
 class Patch(object):
 
-    def __init__(self, patch, dx, field):
+    def __init__(self, patch, dx, data, field):
         self.patch = patch
         self.dx = dx
+        self.data = data
         self.field = field
 
 
@@ -85,8 +86,10 @@ def main(path, level, patch_size):
             time.sleep(1.0e-3)
 
         # ics = grafic_snapshot.load_snapshot(path, level, sample_fft_spacing=False)
-    ics = [grafic_snapshot.load_snapshot(path, level, field=field) for field in ['deltab', 'vbc']]
+    ics = [grafic_snapshot.load_snapshot(path, level, field=field) for field in
+           ['deltab', 'velbx', 'velby', 'velbz', 'vbc']]
 
+    # TODO - set dynamically
     pad = 8
 
     # Calculate the number of cubes for each dimension
@@ -130,37 +133,73 @@ def main(path, level, patch_size):
         # Convert dx_eps to int
         dx_eps = dx_eps.astype(np.int32)
 
-        delta = vbc = None
+        # Initialise
+        delta = None
+        velbx = None
+        velby = None
+        velbz = None
+        vbc = None
+
         if (P): print(msg.format(rank, "Loading patch: {0}").format(patch))
         delta = ics[0].load_patch(origin, dx_eps)
-        vbc = ics[1].load_patch(origin, dx_eps)
+        velbx = ics[1].load_patch(origin, dx_eps)
+        velby = ics[2].load_patch(origin, dx_eps)
+        velbz = ics[3].load_patch(origin, dx_eps)
+        vbc = ics[4].load_patch(origin, dx_eps)
 
         # Compute the bias
         if (B): print(msg.format(rank, "Computing bias"))
-        k, b_c, b_b, b_vc, b_vb = vbc_utils.compute_bias(ics[1], vbc)
+        k, b_c, b_b, b_vc, b_vb = vbc_utils.compute_bias(ics[4], vbc)
 
         # Convolve with field
         if (C): print(msg.format(rank, "Performing convolution"))
         delta_biased = vbc_utils.apply_density_bias(ics[0], k, b_b, delta.shape[0], delta_x=delta)
+        velbx_biased = vbc_utils.apply_density_bias(ics[1], k, b_vb, velbx.shape[0], delta_x=velbx)
+        velby_biased = vbc_utils.apply_density_bias(ics[2], k, b_vb, velby.shape[0], delta_x=velby)
+        velbz_biased = vbc_utils.apply_density_bias(ics[3], k, b_vb, velbz.shape[0], delta_x=velbz)
 
         # Remove the padded region
         x_shape, y_shape, z_shape = delta_biased.shape
         delta_biased = delta_biased[0 + pad:x_shape - pad,
-                                    0 + pad:y_shape - pad, 0 + pad:z_shape - pad]
+                                    0 + pad:y_shape - pad,
+                                    0 + pad:z_shape - pad]
 
-        # Store
-        biased_patch = Patch(patch, dx, delta_biased)
+        x_shape, y_shape, z_shape = velbx_biased.shape
+        velbx_biased = velbx_biased[0 + pad:x_shape - pad,
+                                    0 + pad:y_shape - pad,
+                                    0 + pad:z_shape - pad]
+
+        x_shape, y_shape, z_shape = velby_biased.shape
+        velby_biased = velby_biased[0 + pad:x_shape - pad,
+                                    0 + pad:y_shape - pad,
+                                    0 + pad:z_shape - pad]
+
+        x_shape, y_shape, z_shape = velbz_biased.shape
+        velbz_biased = velbz_biased[0 + pad:x_shape - pad,
+                                    0 + pad:y_shape - pad,
+                                    0 + pad:z_shape - pad]
+
         
-        with open(r"patches/patch_{0}.p".format(rank), "ab") as f:
-            pickle.dump(biased_patch, f)
+        # Store
+        biased_patches = [Patch(patch, dx, delta_biased, 'deltab'),
+                          Patch(patch, dx, velbx_biased, 'velbx'),
+                          Patch(patch, dx, velby_biased, 'velby'),
+                          Patch(patch, dx, velbz_biased, 'velbz')]
+
+        for patch in biased_patches:
+            with open(r"patches/patch_{0}{1}.p".format(patch.field, rank), "ab") as f:
+                pickle.dump(patch, f)
 
         del vbc
         del delta
         del delta_biased
+        del velbx_biased
+        del velby_biased
+        del velbz_biased
 
         gc.collect()
 
-    del biased_patch
+    del biased_patches
     gc.collect()
     
     print(msg.format(rank, 'Done patches'))
@@ -168,54 +207,61 @@ def main(path, level, patch_size):
 ############################## END OF WORK LOOP ###############################
     if rank == 0:
         import os
-        # Write new ICs
-        output_field = np.zeros(ics[0].n)
+        # Loop over fields
+        for field_name in ['deltab', 'velbx', 'velby', 'velbz']:
+            # Write new ICs
+            output_field = np.zeros(ics[0].n)
 
-        dest = []
-        for i in range(size):
-            # Unpickle
-            with open(r"patches/patch_{0}.p".format(i), "rb") as f:
-                print(msg.format(rank, 'Loading pickle {0}/{1}'.format(i+1, size)))
-                while True:
-                    try:
-                        dest.append(pickle.load(f))
-                    except EOFError:
-                        break
+            dest = []
+            for i in range(size):
+                # Unpickle
+                with open(r"patches/patch_{0}{1}.p".format(field_name, i), "rb") as f:
+                    print(msg.format(rank, 'Loading {0} pickle {1}/{2}'.format(field_name, i+1, size)))
+                    while True:
+                        try:
+                            dest.append(pickle.load(f))
+                        except EOFError:
+                            break
 
-        for item in dest:
-            patch = item.patch
-            dx = item.dx
-            delta_biased = item.field
+            # Move from the list of patches to an array
+            for item in dest:
+                patch = item.patch
+                dx = item.dx
+                biased = item.data
+                field = item.field
 
-            # Bounds of this patch
-            x_min, x_max = (int((patch[0]) - (dx[0] / 2.)), int((patch[0]) + (dx[0] / 2.)))
-            y_min, y_max = (int((patch[1]) - (dx[1] / 2.)), int((patch[1]) + (dx[1] / 2.)))
-            z_min, z_max = (int((patch[2]) - (dx[2] / 2.)), int((patch[2]) + (dx[2] / 2.)))
+                # Bounds of this patch
+                x_min, x_max = (int((patch[0]) - (dx[0] / 2.)), int((patch[0]) + (dx[0] / 2.)))
+                y_min, y_max = (int((patch[1]) - (dx[1] / 2.)), int((patch[1]) + (dx[1] / 2.)))
+                z_min, z_max = (int((patch[2]) - (dx[2] / 2.)), int((patch[2]) + (dx[2] / 2.)))
 
-            # Place into output
-            output_field[x_min:x_max, y_min:y_max, z_min:z_max] = delta_biased
+                # Place into output
+                output_field[x_min:x_max, y_min:y_max, z_min:z_max] = biased
 
-        # Write the initial conditions
-        ics_dir = "{0}/ics_ramses_vbc/".format(ics[0].level_dir)
-        if not os.path.isdir(ics_dir):
-            os.mkdir(ics_dir)
-        out_dir = "{0}/level_{1:03d}/".format(ics_dir, level)
-        if not os.path.isdir(out_dir):
-            os.mkdir(out_dir)
+            # Write the initial conditions
+            ics_dir = "{0}/ics_ramses_vbc/".format(ics[0].level_dir)
+            if not os.path.isdir(ics_dir):
+                os.mkdir(ics_dir)
+            out_dir = "{0}/level_{1:03d}/".format(ics_dir, level)
+            if not os.path.isdir(out_dir):
+                os.mkdir(out_dir)
 
-        print(msg.format(rank, 'Writing field'))
-        ics[0].write_field(output_field, "deltab", out_dir=out_dir)
-        print(msg.format(rank, 'Wrote field'))
-
+            print(msg.format(rank, 'Writing {0} field'.format(field_name)))
+            ics[0].write_field(output_field, field_name, out_dir=out_dir)
+            print(msg.format(rank, 'Wrote {0} field'.format(field_name)))
 
 if __name__ == "__main__":
     import sys
     import traceback
+
+    from utils import clean
     
     path = sys.argv[1]
     level = int(sys.argv[2])
     patch_size = float(sys.argv[3])
 
     main(path, level, patch_size)
+
+    clean()
 
     print("Done!")

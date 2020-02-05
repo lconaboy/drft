@@ -117,8 +117,8 @@ class Snapshot:
 
         # h here is little h, i.e. H0 = 100*h km/s/Mpc
         self.cosmo = {"aexp":self.header.cosmo[0],
-                      "omega_M_0":self.header.cosmo[1],
-                      "omega_lambda_0": self.header.cosmo[2],
+                      "omega_m":self.header.cosmo[1],
+                      "omega_l": self.header.cosmo[2],
                       "h":self.header.cosmo[3], "z":self.z}
 
 
@@ -126,7 +126,6 @@ class Snapshot:
 
 
     def load_patch(self, origin, N):
-
         # Retrieve the number of bytes in each slice
         # area = self.area
         size = self.size
@@ -215,6 +214,15 @@ class Snapshot:
 
 
     def load_box(self):
+        """Loads the actual data in the snapshot
+
+        :returns: 
+            values for that snapshot
+        :rtype: 
+            (array)
+
+        """
+        
         origin = np.array([0, 0, 0])
         N = self.N
 
@@ -249,7 +257,7 @@ class Snapshot:
                 # entirely convinced by this, because the way I see it
                 # we are moving along z, not x, but I'll leave it for
                 # now to be consistent
-                box[iz, :, :] = data[origin[0]:origin[0]+N,
+                box[:, :, iz] = data[origin[0]:origin[0]+N,
                                      origin[1]:origin[1]+N]
 
                 # Skip along to the next plane
@@ -295,7 +303,7 @@ class Snapshot:
         header_bytes.tofile(f)
         n.tofile(f)
         np.array([dx, origin[0], origin[1], origin[2], cosmo['aexp'],
-                  cosmo['omega_M_0'], cosmo['omega_lambda_0'],
+                  cosmo['omega_m'], cosmo['omega_l'],
                   cosmo['h'] * 100.0], dtype=np.float32).tofile(f)
         header_bytes.tofile(f)
 
@@ -385,6 +393,39 @@ def load_snapshot(path, level, field):
     return Snapshot(path, level, field)
 
 
+def grid_velc(path, level):
+    """Grids the CDM peculiar velocity fields.
+
+    :param path: 
+    :param level: 
+    :returns: 
+    :rtype: 
+
+    """
+    from interp_part import cic
+
+    # First create the fields
+    coords = ['x', 'y', 'z']
+    qty = ['pos', 'vel']
+    fields = [['{0}c{1}'.format(q, c) for c in coords] for q in qty]
+    
+    # Load up each snapshot
+    s = [[load_snapshot(path, level, f) for f in field] for field in fields]
+
+    # Get the sizes of the IC files
+    N = s[0][0].N
+    assert(s[0][0].N == s[0][1].N == s[0][2].N), 'posx, posy and posz files different sizes.'
+    assert(s[0][0].N == s[1][1].N == s[1][2].N), 'posx, vely and velz files different sizes.'
+    
+    # Interpolate
+    velg = [cic(s[1][i].load_box(), s[0][i].load_box()) for i in range(3)]
+
+    # Now write this data to a field
+    out_dir = s[0][0].level_dir
+    for i in range(3):
+        s[0][0].write_field(velg[i], 'velcg{0}'.format(coords[i]), out_dir=out_dir)
+
+
 def derive_vel(path, level, species):
     """Calculates the magnitude of the velocity fields for the specified
     species. Then writes the ic_velb and ic_velc files.
@@ -397,7 +438,7 @@ def derive_vel(path, level, species):
 
     """
     # Check that species is correct
-    assert(species == 'b' or species == 'c'), "Species should be either 'b' or 'c'"
+    assert(species == 'b' or species == 'cg'), "Species should be either 'b' or 'cg'"
     
     # First create the fields
     fields = ['vel{0}{1}'.format(species, c) for c in ['x', 'y', 'z']]
@@ -440,15 +481,20 @@ def derive_vbc(path, level):
     """
     import os
     
-    # Check that the velb and velc fields have been written
+    # Check that the velb and gridded velc fields have been written
     if not os.path.isfile(path+'level_{0:03d}/ic_velb'.format(level)):
         derive_vel(path, level, species='b')
-    if not os.path.isfile(path+'level_{0:03d}/ic_velc'.format(level)):
-        derive_vel(path, level, species='c')
+
+    if not os.path.isfile(path+'level_{0:03d}/ic_velcg'.format(level)):
+        # Check whether individual components have been written
+        if not os.path.isfile(path+'level{0:03d}/ic_velcgx'.format(level)):
+            grid_velc(path, level)
+    
+        derive_vel(path, level, species='cg')
 
     # if they have, go ahead and load them up
     vb = load_snapshot(path, level, 'velb')
-    vc = load_snapshot(path, level, 'velc')
+    vc = load_snapshot(path, level, 'velcg')
     
     # Check they are the same size
     assert(vb.N == vc.N), 'ic_velb and ic_velc different sizes.'

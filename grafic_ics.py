@@ -126,95 +126,79 @@ class Snapshot:
 
 
     def load_patch(self, origin, N):
-        # Retrieve the number of bytes in each slice
-        # area = self.area
+        """Partially load a grafic file. Allows for periodic boundary
+        conditions, i.e. origin + N can be > n.
+
+        :param origin: 
+            (seq of ints) coordinates of lower left corner of region to load
+        :param N:
+            (seq of ints) extent of region
+        :returns:
+            value of the grafic file for the specified region
+        :rtype:
+            (array)
+
+        """
+        # Retrieve the number of bytes in the header, and each slab
+        area = self.area
         size = self.size
 
         fname = self.ic_fname()
         
         # Retrieve the number of points in each slice
         (n1, n2, n3) = self.n
-        area = int(n1 * n2 * 4)
 
         # Store the data in a patch
         patch = np.zeros(shape=N, dtype=np.float32)
 
-        z0 = int(origin[2] % n3)
-        z = z0
-
-        print('N = {}'.format(N))
-        print('n = {}'.format(self.n))
-
         with open(fname, "rb") as f:
+            # Seek past the header block to between the final header
+            # record marker and the inital data record marker
+            f.seek(size - 4, 0)
 
-            # z counter
-            iz = 0
-            ix = 0
+            # Seek to the first relevant slab
+            z0 = int(origin[2] % n3)
+            f.seek(z0 * (area + 8), 1)
 
             # The z-axis changes the slowest
-            for i1 in range(origin[0], origin[0] + N[0]):
-                x = int(i1 % n1)
-
-                pos = size + (area + 8)*x
-                # print('pos = {}'.format((pos-size)/(area+8)))
-                f.seek(pos, 0)
-    
-                # Pick out the plane, and reshape to (x, y)
-                try:
-                    data = np.fromfile(f, dtype=np.float32,
-                                   count=(n2 * n3)).reshape((n2, n3))
-
-                except:
-                    print('x = {}'.format(x))
-
-                # y counter
-                i2 = np.arange(origin[1], origin[1]+N[1])
-                i3 = np.arange(origin[2], origin[2]+N[2])
-                # i1 = np.arange(origin[0], origin[0]+N[0])
-
-                y = np.mod(i2, n2, dtype=int)
-                # x = np.mod(i1, n1, dtype=int)
-                z = np.mod(i3, n3, dtype=int)
-
-                yg, zg = np.meshgrid(y, z)
-
-                # This transpose to make the data fit into the array,
-                # need to check this
-                patch[ix, :,:] = data[yg, zg].T
-
-                # iy = 0
-                # for i2 in range(origin[1], origin[1] + N):
-                #     # x counter
-                #     ix = 0
-                #     for i1 in range(origin[0], origin[0] + N):
-                #         # How far along the respective axes
-                #         y = int(i2 % n2)
-                #         x = int(i1 % n1)
-
-                #         # Reshape and store the patch data
-
-                #         # Originally I had this written as patch[:, :,
-                #         # iz] = ... but in order to get the same
-                #         # results as seren3 I have to use patch[iz, :,
-                #         # :] = ... -- I'm not entirely convinced by
-                #         # this, because the way I see it we are moving
-                #         # along z, not x, but I'll leave it for now to
-                #         # be consistent (this also means that the
-                #         # data[x, y] indices are swapped from the way
-                #         # I would assume)
+            for i3 in range(origin[2], origin[2] + N[2]):
+                # Check that we haven't looped back through the file
+                if i3 >= n3:
+                    print('Looped back through file')
+                    f.seek(size + 8, 0)
                 
-                #         patch[iz, iy, ix] = data[y, x]
+                # Read the initial record marker, this provides a good
+                # check that we're in the right place
+                rm = np.fromfile(f, dtype=np.int32, count=1)
+                assert rm == self.area, 'For slab {0} expected initial record marker of {1} but got {2}'.format(iz, self.area, rm)
+    
+                # Pick out the slab, and reshape to (y, x). The slab
+                # is transposed because Python is row-major whereas
+                # Fortran is column-major
+                slab = np.fromfile(f, dtype=np.float32,
+                                   count=(n1 * n2)).reshape((n1, n2))
 
-                #         # Step forward
-                #         ix += 1
-                #     iy += 1
-                ix += 1
+                # Allow for periodic boundary conditions and the
+                # transposed array
+                i1 = np.arange(origin[0], origin[0]+N[0])
+                i2 = np.arange(origin[1], origin[1]+N[1])
+                x = np.mod(i1, n1, dtype=int)
+                y = np.mod(i2, n2, dtype=int)
+                yg, xg = np.meshgrid(y, x)
+
+                iz = int(i3 - origin[2])
+                patch[:, :, iz] = slab[xg, yg]
+
+                # Read the end record marker, this provides a good
+                # check that we're in the right place
+                rm = np.fromfile(f, dtype=np.int32, count=1)
+                assert rm == self.area, 'For slab {0} expected end record marker of {1} but got {2}'.format(iz, self.area, rm)
 
         return patch
 
 
     def load_box(self):
-        """Loads the actual data in the snapshot
+        """Loads the entire grafic file into memory.
 
         :returns: 
             values for that snapshot
@@ -234,21 +218,28 @@ class Snapshot:
         # Retrieve the number of points in each slice
         (n1, n2, n3) = self.n
 
-        # Store the data in a patch
-        box = np.zeros(shape=(N, N, N), dtype=np.float32)
+        # Store the data in a patch, n2 comes before n1 because
+        # Fortran is column-major where Python is row-major
+        box = np.zeros(shape=(n1, n2, n3), dtype=np.float32)
 
         z0 = origin[2]
         z = z0
 
         with open(fname, "rb") as f:
-            # Seek past the header block to the initial point, then
-            # move along another z times to the z-origin
-            f.seek((size + (area + 8)*z), 0)
+            # Seek past the header block to between the final header
+            # record marker and the inital data record marker
+            f.seek(size - 4, 0)
 
             # The z-axis changes the slowest
-            for iz in range(N):
-                # Pick out the plane, and reshape to (x, y)
-                data = np.fromfile(f, dtype=np.float32,
+            for iz in range(n3):
+                # Read the initial record marker, this provides a good
+                # check that we're in the right place
+                rm = np.fromfile(f, dtype=np.int32, count=1)
+                assert rm == self.area, 'For slab {0} expected initial record marker of {1} but got {2}'.format(iz, self.area, rm)
+                
+                # Pick out the plane, and reshape to (y, x) since
+                # Python is row-major where Fortran is column-major
+                slab = np.fromfile(f, dtype=np.float32,
                                    count=(n1 * n2)).reshape((n1, n2))
 
                 # Originally I had this written as patch[:, :, iz] =
@@ -257,12 +248,13 @@ class Snapshot:
                 # entirely convinced by this, because the way I see it
                 # we are moving along z, not x, but I'll leave it for
                 # now to be consistent
-                box[:, :, iz] = data[origin[0]:origin[0]+N,
-                                     origin[1]:origin[1]+N]
+                box[:, :, iz] = slab
 
-                # Skip along to the next plane
-                z += 1
-                f.seek((size + (area + 8)*z), 0)
+
+                # Read the final record marker, this provides a good
+                # check that we're in the right place
+                rm = np.fromfile(f, dtype=np.int32, count=1)
+                assert rm == self.area, 'For slab {0} expected end record marker of {1} but got {2}'.format(iz, self.area, rm)
 
         return box
 
@@ -310,13 +302,15 @@ class Snapshot:
 
     def write_field(self, data, field_name, out_dir=None, **kwargs):
         """Function for writing the data as a Fortran unformatted
-        binary. Writes a header to mimic grafic IC files, as well as
+        binary. Writes a header to mimic grafic files, as well as
         appending and prepending each 'record' (i.e. each [ix, :, :])
-        with the number of bytes in that slice, as done by Fortran
-        (when compiled with GCC).
+        with the number of bytes in that slab, as done by Fortran
+        (when compiled with GCC). Assumes the data is from Python,
+        i.e. that it is in row-major format. Fortran uses column-major
+        format, so each slab will be transposed before writing.
 
         :param data: (numpy.ndarray) data should be in np.float32 format and 
-                     have (n1, n2, n3) elements
+                     have (n2, n1, n3) elements
         :param field_name: (str) field to write as, will be prepended with 'ic_' 
         :param out_dir: (str) directory to write the field to
         :returns: None
@@ -324,12 +318,6 @@ class Snapshot:
 
         """
         import os
-        # print('data.shape = {0}'.format(data.shape))
-        # print('type(data.shape) = {0}'.format(type(data.shape)))
-        # print('self.n = {0}'.format(self.n))
-        # print('type(self.n) = {0}'.format(type(self.n)))
-        # assert(data.shape == self.n)
-
         # Create filename
         fname = self.field_fname(field_name)
         if out_dir is not None:
@@ -353,13 +341,14 @@ class Snapshot:
                 # record
                 area = np.array([n1 * n2 * 4], dtype=np.int32)
 
-                for ix in range(n1):
-                    # Record header
+                for iz in range(n3):
+                    # Initial record marker
                     area.tofile(f)
-                    # Record
-                    tmp = data[ix, :, :].flatten().astype(np.float32)
-                    tmp.tofile(f)
-                    # Record footer
+                    # Write data, converting back to column-major as
+                    # is used by Fortran
+                    slab = data[:, :, iz].flatten(order='C').astype(np.float32)
+                    slab.tofile(f)
+                    # End record marker
                     area.tofile(f)
 
     @property
@@ -428,17 +417,17 @@ def grid_velc(path, level):
 
 def derive_vel(path, level, species):
     """Calculates the magnitude of the velocity fields for the specified
-    species. Then writes the ic_velb and ic_velc files.
+    species. Then writes the ic_velb and ic_velcg files.
 
     :param path: (str) path to directory containing the level_... directories
     :param level: (int) level to load
-    :param species: (str) should be either 'b' or 'c'
+    :param species: (str) should be either 'b' or 'cg'
     :returns: None
     :rtype:
 
     """
     # Check that species is correct
-    assert(species == 'b' or species == 'cg'), "Species should be either 'b' or 'cg'"
+    assert species in ['b', 'cg'], "Species should be either 'b' or 'cg'"
     
     # First create the fields
     fields = ['vel{0}{1}'.format(species, c) for c in ['x', 'y', 'z']]

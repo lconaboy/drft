@@ -1,14 +1,20 @@
 import numpy as np
 
-# level = 8
-# N = 32
-# # base = '/home/lc589/IC_2048z_14Mpc/level_{0:03d}/'.format(level)
-# path = '/home/lc589/IC_2048z_14Mpc/'
-# field = 'deltab'
-# # path = base+field
-# dx = 0.5**level
+"""Tools for reading in grafic files. A Snapshot instance won't
+contain any data, but the data can be read in from the instance.
 
-# origin = np.array([1, 1, 1], dtype=int)
+Example
+
+    from grafic_tools import Snapshot
+
+    path = '/path/to/ics/dir/'  # not including level_xxx/
+    level = 6
+    field = deltab'             # not including 'ic_'
+    s = Snapshot(path, level, field)
+    data = s.load_box()
+
+"""
+
 
 class Header:
 
@@ -22,9 +28,12 @@ class Header:
         Example
           h = Header(path)
        
-        :param path: (str) path to grafic file
-        :returns: None
-        :rtype: NoneType
+        :param path: 
+            (str) path to grafic file
+        :returns: 
+            None
+        :rtype: 
+            NoneType
         """
 
         # Read header
@@ -43,11 +52,13 @@ class Header:
         """Function for taking the path to a grafic IC file and reading the
         header.
 
-        :param path: (str) path to IC file
-        :returns: (3-tuple) number of grid points, (float) initial separation
-                  of points, (3-tuple) offset of grids (i.e. coordinates), 
-                  (4-tuple) cosmological parameters, (int) total number of
-                  bytes in header, (int) number of bytes in a slice
+        :param path: 
+            (str) path to IC file
+        :returns: 
+            (3-tuple) number of grid points, (float) initial separation
+            of points, (3-tuple) offset of grids (i.e. coordinates), 
+            (4-tuple) cosmological parameters, (int) total number of
+            bytes in header, (int) number of bytes in a slice
         :rtype:
 
         """
@@ -93,11 +104,16 @@ class Snapshot:
     def __init__(self, path, level, field):
         """Class for containing and operating on a grafic IC file. 
 
-        :param path: (str) path to IC directory
-        :param level: (int) level to load
-        :param field: (str) field to load (i.e. 'deltab')
-        :returns: snapshot instance
-        :rtype: Snapshot
+        :param path: 
+            (str) path to IC directory
+        :param level: 
+            (int) level to load
+        :param field: 
+            (str) field to load (i.e. 'deltab')
+        :returns: 
+            snapshot instance
+        :rtype: 
+            (Snapshot)
 
         """
 
@@ -164,8 +180,7 @@ class Snapshot:
             for i3 in range(origin[2], origin[2] + N[2]):
                 # Check that we haven't looped back through the file
                 if i3 >= n3:
-                    print('Looped back through file')
-                    f.seek(size + 8, 0)
+                    f.seek(size - 4, 0)
                 
                 # Read the initial record marker, this provides a good
                 # check that we're in the right place
@@ -174,7 +189,11 @@ class Snapshot:
     
                 # Pick out the slab, and reshape to (y, x). The slab
                 # is transposed because Python is row-major whereas
-                # Fortran is column-major
+                # Fortran is column-major, or we can use row-major as
+                # long as we're consistent about writing out in
+                # row-major
+                # slab = np.fromfile(f, dtype=np.float32,
+                #                    count=(n1 * n2)).reshape((n1, n2)).transpose()
                 slab = np.fromfile(f, dtype=np.float32,
                                    count=(n1 * n2)).reshape((n1, n2))
 
@@ -184,10 +203,16 @@ class Snapshot:
                 i2 = np.arange(origin[1], origin[1]+N[1])
                 x = np.mod(i1, n1, dtype=int)
                 y = np.mod(i2, n2, dtype=int)
-                yg, xg = np.meshgrid(y, x)
+                xg, yg = np.meshgrid(x, y)
 
                 iz = int(i3 - origin[2])
-                patch[:, :, iz] = slab[xg, yg]
+
+                # Again, the choice of slab indices depends on whether
+                # we are using row-major or column-major. Row-major is
+                # fine as long as we are consistent about writing out
+                # in row-major.
+                # patch[:, :, iz] = slab[xg, yg]
+                patch[:, :, iz] = slab[yg, xg]
 
                 # Read the end record marker, this provides a good
                 # check that we're in the right place
@@ -219,7 +244,10 @@ class Snapshot:
         (n1, n2, n3) = self.n
 
         # Store the data in a patch, n2 comes before n1 because
-        # Fortran is column-major where Python is row-major
+        # Fortran is column-major where Python is row-major, or if we
+        # write out in row-major we can read in in row-major and get
+        # the correct answer
+        # box = np.zeros(shape=(n2, n1, n3), dtype=np.float32)
         box = np.zeros(shape=(n1, n2, n3), dtype=np.float32)
 
         z0 = origin[2]
@@ -239,17 +267,15 @@ class Snapshot:
                 
                 # Pick out the plane, and reshape to (y, x) since
                 # Python is row-major where Fortran is column-major
+                # or, as long as we are consistent about writing out in
+                # row-major format, then we can read in in row-major
                 slab = np.fromfile(f, dtype=np.float32,
                                    count=(n1 * n2)).reshape((n1, n2))
+                # slab = np.fromfile(f, dtype=np.float32,
+                #                    count=(n1 * n2)).reshape(n1, n2).transpose()
 
-                # Originally I had this written as patch[:, :, iz] =
-                # ... but in order to get the same results as seren3 I
-                # have to use patch[iz, :, :] = ... -- I'm not
-                # entirely convinced by this, because the way I see it
-                # we are moving along z, not x, but I'll leave it for
-                # now to be consistent
+                # Store the slab in the box
                 box[:, :, iz] = slab
-
 
                 # Read the final record marker, this provides a good
                 # check that we're in the right place
@@ -309,11 +335,15 @@ class Snapshot:
         i.e. that it is in row-major format. Fortran uses column-major
         format, so each slab will be transposed before writing.
 
-        :param data: (numpy.ndarray) data should be in np.float32 format and 
-                     have (n2, n1, n3) elements
-        :param field_name: (str) field to write as, will be prepended with 'ic_' 
-        :param out_dir: (str) directory to write the field to
-        :returns: None
+        :param data: 
+            (numpy.ndarray) data should be in np.float32 format and 
+            have (n2, n1, n3) elements
+        :param field_name: 
+            (str) field to write as, will be prepended with 'ic_' 
+        :param out_dir: 
+            (str) directory to write the field to
+        :returns: 
+            None
         :rtype:
 
         """
@@ -344,9 +374,17 @@ class Snapshot:
                 for iz in range(n3):
                     # Initial record marker
                     area.tofile(f)
+                    
                     # Write data, converting back to column-major as
                     # is used by Fortran
+                    #
+                    # slab = data[:, :, iz].flatten(order='F').astype(np.float32)
+                    #
+                    # or, as long as we are consistent about reading
+                    # in in row-major format, then writing out in
+                    # row-major will yield the correct output field
                     slab = data[:, :, iz].flatten(order='C').astype(np.float32)
+                    
                     slab.tofile(f)
                     # End record marker
                     area.tofile(f)
@@ -370,13 +408,18 @@ class Snapshot:
 
 
 def load_snapshot(path, level, field):
-    """Convenience function for loading grafic ICs.
+    """Convenience function for loading grafic files.
 
-    :param path: (str) path to directory containing the level_... directories
-    :param level: (int) level to load
-    :param field: (str) field to load, i.e. 'deltab' to load file 'ic_deltab'
-    :returns: the grafic IC in a Snapshot class
-    :rtype: Snapshot
+    :param path: 
+        (str) path to directory containing the level_... directories
+    :param level: 
+        (int) level to load
+    :param field: 
+        (str) field to load, i.e. 'deltab' to load file 'ic_deltab'
+    :returns: 
+        the grafic file in a Snapshot class
+    :rtype: 
+        (Snapshot)
 
     """
     return Snapshot(path, level, field)
@@ -385,10 +428,14 @@ def load_snapshot(path, level, field):
 def grid_velc(path, level):
     """Grids the CDM peculiar velocity fields.
 
-    :param path: 
-    :param level: 
+    :param path:
+        (str) path to ic_velc* fields
+    :param level:
+        (int) level of the fields
     :returns: 
+        None
     :rtype: 
+        NoneType
 
     """
     from interp_part import cic
@@ -462,10 +509,14 @@ def derive_vbc(path, level):
     and velc fields don't already exist, this function creates
     them. Then writes the ic_vbc file.
 
-    :param path: (str) path to directory containing the level_... directories
-    :param level: (int) level to load
-    :returns: None
+    :param path: 
+        (str) path to directory containing the level_... directories
+    :param level: 
+        (int) level to load
+    :returns: 
+        None
     :rtype:
+        NoneType
 
     """
     import os

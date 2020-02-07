@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 # import scipy.fftpack as fft
 import numpy.fft as fft
 
-# from grafic_ics import Snapshot
+# from grafic_tools import Snapshot
 from cosmology import Cosmology
 
 class Continuity:
@@ -12,20 +12,29 @@ class Continuity:
         Class to calculate peculiar velocities from overdensities using
         the continuity equation
 
-        :param ic: ic_deltab file, created using grafic_ics
-        :type ic: Snapshot object, created using grafic_ics
-        :param tf_path: path to CAMB transfer functions used to generate ICs,
-                        otherwise assume that transfer functions/fitting
-                        functions with the same amplitude for baryons and dark
-                        matter perturbations are used
-        :param params: either None, to get parameters from Snapshot object or 
-                       string to use defined parameters
-        :type ic: None or str
-        :param approx: whether to use the approximate or full version of the 
-                       continuity equation
-        :type approx: bool
-        :param real: whether to use a real FFT or regular FFT
-        :type real: bool
+        :param ic: 
+            ic_deltab file, created using grafic_tools
+        :type ic: 
+            Snapshot object, created using grafic_tools
+        :param tf_path: 
+            path to CAMB transfer functions used to generate ICs,
+            otherwise assume that transfer functions/fitting
+            functions with the same amplitude for baryons and dark
+            matter perturbations are used
+        :param params: 
+            either None, to get parameters from Snapshot object or 
+            string to use defined parameters
+        :type ic: 
+            None or str
+        :param approx: 
+            whether to use the approximate or full version of the 
+            continuity equation
+        :type approx: 
+            bool
+        :param real: 
+            whether to use a real FFT or regular FFT
+        :type real: 
+            bool
         :returns: 
         :rtype:
 

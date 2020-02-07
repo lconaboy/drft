@@ -55,7 +55,7 @@ def main(path, level, patch_size):
     '''
     import utils as vbc_utils
     from utils import divisors
-    import grafic_ics as grafic_snapshot
+    import grafic_tools as grafic
     from mpi4py import MPI
     import gc
     import os
@@ -74,7 +74,7 @@ def main(path, level, patch_size):
         # Make sure vbc field exists on disk
         if not os.path.isfile(path+"level_{0:03d}/ic_vbc".format(level)):
             print(msg.format(rank, 'Deriving vbc'))
-            grafic_snapshot.derive_vbc(path, level)
+            grafic.derive_vbc(path, level)
         # Make patches dir
         if os.path.isdir("./patches"):
             raise Exception('Patches already exist. Remove and re-run.')
@@ -85,8 +85,8 @@ def main(path, level, patch_size):
         while not os.path.isfile(path+"level_{0:03d}/ic_vbc".format(level)):
             time.sleep(1.0e-3)
 
-        # ics = grafic_snapshot.load_snapshot(path, level, sample_fft_spacing=False)
-    ics = [grafic_snapshot.load_snapshot(path, level, field=field) for field in
+        # ics = grafic.load_snapshot(path, level, sample_fft_spacing=False)
+    ics = [grafic.load_snapshot(path, level, field=field) for field in
            ['deltab', 'velbx', 'velby', 'velbz', 'vbc']]
 
     # TODO - set dynamically

@@ -164,8 +164,9 @@ class Snapshot:
         # Retrieve the number of points in each slice
         (n1, n2, n3) = self.n
 
-        # Store the data in a patch
-        patch = np.zeros(shape=N, dtype=np.float32)
+        # Store the data in a patch, swapping the row and column for
+        # loading, see comments passim ad nauseam
+        patch = np.zeros(shape=(N[1], N[0], N[2]), dtype=np.float32)
 
         with open(fname, "rb") as f:
             # Seek past the header block to between the final header

@@ -195,7 +195,7 @@ class Snapshot:
                 # slab = np.fromfile(f, dtype=np.float32,
                 #                    count=(n1 * n2)).reshape((n1, n2)).transpose()
                 slab = np.fromfile(f, dtype=np.float32,
-                                   count=(n1 * n2)).reshape((n1, n2))
+                                   count=(n1 * n2)).reshape((n2, n1))
 
                 # Allow for periodic boundary conditions and the
                 # transposed array

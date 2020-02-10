@@ -1,7 +1,8 @@
-import numpy as np
 import os
 import gc
+import sys
 import pickle
+import numpy as np
 """
 TODO
 
@@ -89,10 +90,17 @@ def main(path, level, patch_size):
     ics = [grafic.load_snapshot(path, level, field=field) for field in
            ['deltab', 'velbx', 'velby', 'velbz', 'vbc']]
 
-    # TODO - set dynamically
+    # This only works with cubic zoom regions, so check that and exit
+    # if not
+    if ((ics[0].n[0] != ics[0].n[1]) or (ics[0].n[0] != ics[0].n[2])):
+        print('Only works with cubic zoom regions. Use force_equal_extent = yes with music to generate cubic zoom regions.')
+        sys.exit()
+    
     pad = 8
 
-    # Calculate the number of cubes for each dimension
+    # Calculate the number of cubes for each dimension, we want an
+    # equal number of cubes in each dimension and this is most easily
+    # achieved if the zoom region is actually cubic
     ncubes = np.zeros(3)
     for i in range(3):
         div = np.array([float(i) for i in divisors(ics[0].n[i], mode='yield')])

@@ -216,7 +216,7 @@ def main(path, level, patch_size):
             for i in range(size):
                 # Unpickle
                 with open(r"patches/patch_{0}{1}.p".format(field_name, i), "rb") as f:
-                    print(msg.format(rank, 'Loading {0} pickle {1}/{2}'.format(field_name, i+1, size)))
+                    print(msg.format(rank, 'Loading {0} pickle [{1}/{2}]'.format(field_name, i+1, size)))
                     while True:
                         try:
                             dest.append(pickle.load(f))

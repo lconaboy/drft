@@ -94,8 +94,8 @@ class Header:
             xoff = (xoff1, xoff2, xoff3)
             cosmo = (astart, omega_m, omega_l, h0/100.0)
             area = int(n1 * n2 * 4)  # Total number of bytes in a slice
-            size = 44 + 8 + 4        # Total number of bytes in header,
-                                     # including first record header
+            size = 44 + 8            # Total number of bytes in header,
+                                     # including initial and end record markers
 
             return n, dx, xoff, cosmo, size, area
 
@@ -171,22 +171,24 @@ class Snapshot:
         with open(fname, "rb") as f:
             # Seek past the header block to between the final header
             # record marker and the inital data record marker
-            f.seek(size - 4, 0)
+            f.seek(size, 0)
 
             # Seek to the first relevant slab
             z0 = int(origin[2] % n3)
             f.seek(z0 * (area + 8), 1)
-
+            
             # The z-axis changes the slowest
             for i3 in range(origin[2], origin[2] + N[2]):
-                # Check that we haven't looped back through the file
-                if i3 >= n3:
-                    f.seek(size - 4, 0)
-                
+                # Check that we haven't looped back through the
+                # file. First need to normalise f.tell() to n_slabs.
+                cur_pos = (f.tell() - (self.size)) / (self.area + 8)
+                if cur_pos >= n3:
+                    f.seek(size, 0)
+            
                 # Read the initial record marker, this provides a good
                 # check that we're in the right place
                 rm = np.fromfile(f, dtype=np.int32, count=1)
-                assert rm == self.area, 'For slab {0} expected initial record marker of {1} but got {2}'.format(iz, self.area, rm)
+                assert rm == self.area, 'For slab {0} expected initial record marker of {1} but got {2}'.format(i3, self.area, rm)
     
                 # Pick out the slab, and reshape to (y, x). The slab
                 # is transposed because Python is row-major whereas
@@ -218,7 +220,7 @@ class Snapshot:
                 # Read the end record marker, this provides a good
                 # check that we're in the right place
                 rm = np.fromfile(f, dtype=np.int32, count=1)
-                assert rm == self.area, 'For slab {0} expected end record marker of {1} but got {2}'.format(iz, self.area, rm)
+                assert rm == self.area, 'For slab {0} expected end record marker of {1} but got {2}'.format(i3, self.area, rm)
 
         return patch
 
@@ -257,7 +259,7 @@ class Snapshot:
         with open(fname, "rb") as f:
             # Seek past the header block to between the final header
             # record marker and the inital data record marker
-            f.seek(size - 4, 0)
+            f.seek(size, 0)
 
             # The z-axis changes the slowest
             for iz in range(n3):

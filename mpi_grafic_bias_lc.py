@@ -81,6 +81,7 @@ def main(path, level, patch_size):
             raise Exception('Patches already exist. Remove and re-run.')
         elif not os.path.isdir("./patches"):
             os.mkdir("./patches")
+            print(msg.format(rank, 'Made patches directory.'))
     else:
         # Wait for rank 0 to write the velb, velc and vbc fields
         while not os.path.isfile(path+"level_{0:03d}/ic_vbc".format(level)):

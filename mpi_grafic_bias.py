@@ -66,6 +66,8 @@ def main(path, level, patch_size, verbose=True):
     comm = MPI.COMM_WORLD
     size = comm.Get_size()
     rank = comm.Get_rank()
+    barrier = comm.Barrier
+    finalize = MPI.Finalize
 
     #mpi.msg("Loading initial conditions")
     vbc_utils.msg(rank, "Loading initial conditions.", verbose)
@@ -261,6 +263,13 @@ def main(path, level, patch_size, verbose=True):
             vbc_utils.clean()
             vbc_utils.msg(rank, 'Cleaned up.')
 
+        # We have to wait until rank 0 has done the final reading and
+        # writing, then everything can finish at the same time
+        barrier()
+        vbc_utils.msg(rank, 'Done!')
+        finalize()
+        
+
 if __name__ == "__main__":
     import sys
     import traceback
@@ -280,5 +289,3 @@ if __name__ == "__main__":
         verbose = True
         
     main(path, level, patch_size, verbose)
-
-    print("Done!")

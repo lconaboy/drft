@@ -255,9 +255,12 @@ def main(path, level, patch_size):
             if not os.path.isdir(out_dir):
                 os.mkdir(out_dir)
 
-            print(msg.format(rank, 'Writing {0} field'.format(field_name)))
+            print(msg.format(rank, 'Writing {0} field.'.format(field_name)))
             ics[0].write_field(output_field, field_name, out_dir=out_dir)
-            print(msg.format(rank, 'Wrote {0} field'.format(field_name)))
+            print(msg.format(rank, 'Wrote {0} field.'.format(field_name)))
+
+            vbc_utils.clean()
+            print(msg.format(rank, 'Cleaned up.'))
 
 if __name__ == "__main__":
     import sys
@@ -270,7 +273,5 @@ if __name__ == "__main__":
     patch_size = float(sys.argv[3])
 
     main(path, level, patch_size)
-
-    clean()
 
     print("Done!")

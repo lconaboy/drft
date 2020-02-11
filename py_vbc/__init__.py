@@ -15,7 +15,7 @@ TODO
 physically motivated, perhaps even random 
 """
 
-def run_pyvbc(vbc, zstart, zend, dz, kmin=0.1, kmax=10000, n=64, delta=False):
+def run_pyvbc(vbc, zstart, zend, dz, kmin=0.1, kmax=10000, n=64, delta=False, verbose=False):
     """
     Runs py_vbc and returns either the power spectrum or dimensionless power
     spectrum.
@@ -52,7 +52,7 @@ def run_pyvbc(vbc, zstart, zend, dz, kmin=0.1, kmax=10000, n=64, delta=False):
     """
     k = np.logspace(np.log10(kmin), np.log10(kmax), num=n)
 
-    g = calc_derivs(k, vbc, zstart, zend, dz)
+    g = calc_derivs(k, vbc, zstart, zend, dz, verbose=False)
 
     p_c, p_b, p_vc, p_vb = calc_power_spec(k, g, zstart)
 

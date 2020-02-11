@@ -21,6 +21,12 @@ def vbc_rms(vbc_field):
     rms = np.sqrt(np.mean(vbc_field ** 2))
     return rms
 
+def msg(rank, s, verbose=True):
+    if verbose:
+        print('[rank {0}]: {1}'.format(rank, s))
+    else:
+        return
+
 
 # def vbc_ps_fname(rms, z, boxsize):
 #     import os

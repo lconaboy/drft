@@ -221,14 +221,14 @@ def derivs(z, y, k, T_spline, xe_spline, vbc, zstart):
     return dy
 
 
-def calc_derivs(k, vbc, zstart, zend, dz):
+def calc_derivs(k, vbc, zstart, zend, dz, verbose):
     T_spline, xe_spline = interpolate_recfast()
     y0 = set_ics(k, zstart, dz)
     y = np.zeros(shape=y0.shape)
     nk = y0.shape[0]
     z = np.zeros(shape=(nk, 7))
 
-    print('Solving evolution equations from z={0:4.2f} to z={1:4.2f} with v_bc={2:4.2f} ...'.format(zstart, zend, vbc))
+    if verbose: print('Solving evolution equations from z={0:4.2f} to z={1:4.2f} with v_bc={2:4.2f} ...'.format(zstart, zend, vbc))
     for i, ik in enumerate(k):
         # Progress, remove end='\r' for Python 2 compatibility
         if verbose:

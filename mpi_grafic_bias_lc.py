@@ -49,7 +49,7 @@ class Patch(object):
         self.field = field
 
 
-def main(path, level, patch_size):
+def main(path, level, patch_size, verbose=True):
     '''
     Writes a new set of grafIC initial conditions with a drift velocity dependent
     bias in the power spectrum
@@ -66,22 +66,21 @@ def main(path, level, patch_size):
     comm = MPI.COMM_WORLD
     size = comm.Get_size()
     rank = comm.Get_rank()
-    msg = 'rank {0}: {1}'
 
     #mpi.msg("Loading initial conditions")
-    print(msg.format(rank, "Loading initial conditions"))
+    vbc_utils.msg(rank, "Loading initial conditions.", verbose)
     
     if rank == 0:
         # Make sure vbc field exists on disk
         if not os.path.isfile(path+"level_{0:03d}/ic_vbc".format(level)):
-            print(msg.format(rank, 'Deriving vbc'))
+            vbc_utils.msg(rank, 'Deriving ic_vbc.', verbose)
             grafic.derive_vbc(path, level)
         # Make patches dir
         if os.path.isdir("./patches"):
             raise Exception('Patches already exist. Remove and re-run.')
         elif not os.path.isdir("./patches"):
             os.mkdir("./patches")
-            print(msg.format(rank, 'Made patches directory.'))
+            vbc_utils.msg(rank, 'Made patches directory.', verbose)
     else:
         # Wait for rank 0 to write the velb, velc and vbc fields
         while not os.path.isfile(path+"level_{0:03d}/ic_vbc".format(level)):
@@ -111,7 +110,7 @@ def main(path, level, patch_size):
     # Compute cube positions in cell units
     cubes = dx = None
     if rank == 0:
-        print(msg.format(rank, "Using {0} cubes per dimension.".format(ncubes)))
+        vbc_utils.msg(rank, "Using {0} cubes per dimension.".format(ncubes), verbose)
 
         cubes, dx = vbc_utils.cube_positions(ics[0], ncubes, ics[0].N)
         cubes = np.array(cubes)
@@ -130,8 +129,8 @@ def main(path, level, patch_size):
     patches = comm.scatter(chunks, root=0)
     
     for i, patch in enumerate(patches):
-
-        print(msg.format(rank, '{0}/{1}'.format(i+1, len(patches))))
+        # Always print this
+        vbc_utils.msg(rank, '{0}/{1}'.format(i+1, len(patches)))
 
         # Convert dx to float
         dx = dx.astype(np.float32)
@@ -149,7 +148,7 @@ def main(path, level, patch_size):
         velbz = None
         vbc = None
 
-        if (P): print(msg.format(rank, "Loading patch: {0}").format(patch))
+        vbc_utils.msg(rank, "Loading patch: {0}.".format(patch), verbose)
         delta = ics[0].load_patch(origin, dx_eps)
         velbx = ics[1].load_patch(origin, dx_eps)
         velby = ics[2].load_patch(origin, dx_eps)
@@ -157,11 +156,11 @@ def main(path, level, patch_size):
         vbc = ics[4].load_patch(origin, dx_eps)
 
         # Compute the bias
-        if (B): print(msg.format(rank, "Computing bias"))
+        vbc_utils.msg(rank, "Computing bias.", verbose)
         k, b_c, b_b, b_vc, b_vb = vbc_utils.compute_bias(ics[4], vbc)
 
         # Convolve with field
-        if (C): print(msg.format(rank, "Performing convolution"))
+        vbc_utils.msg(rank, "Performing convolution.", verbose)
         delta_biased = vbc_utils.apply_density_bias(ics[0], k, b_b, delta.shape[0], delta_x=delta)
         velbx_biased = vbc_utils.apply_density_bias(ics[1], k, b_vb, velbx.shape[0], delta_x=velbx)
         velby_biased = vbc_utils.apply_density_bias(ics[2], k, b_vb, velby.shape[0], delta_x=velby)
@@ -211,7 +210,7 @@ def main(path, level, patch_size):
     del biased_patches
     gc.collect()
     
-    print(msg.format(rank, 'Done patches'))
+    vbc_utils.msg(rank, 'Done patches', verbose)
 
 ############################## END OF WORK LOOP ###############################
     if rank == 0:
@@ -225,7 +224,7 @@ def main(path, level, patch_size):
             for i in range(size):
                 # Unpickle
                 with open(r"patches/patch_{0}{1}.p".format(field_name, i), "rb") as f:
-                    print(msg.format(rank, 'Loading {0} pickle [{1}/{2}]'.format(field_name, i+1, size)))
+                    vbc_utils.msg(rank, 'Loading {0} pickle [{1}/{2}]'.format(field_name, i+1, size), verbose)
                     while True:
                         try:
                             dest.append(pickle.load(f))
@@ -255,23 +254,31 @@ def main(path, level, patch_size):
             if not os.path.isdir(out_dir):
                 os.mkdir(out_dir)
 
-            print(msg.format(rank, 'Writing {0} field.'.format(field_name)))
+            vbc_utils.msg(rank, 'Writing {0} field.'.format(field_name), verbose)
             ics[0].write_field(output_field, field_name, out_dir=out_dir)
-            print(msg.format(rank, 'Wrote {0} field.'.format(field_name)))
+            vbc_utils.msg(rank, 'Wrote {0} field.'.format(field_name), verbose)
 
             vbc_utils.clean()
-            print(msg.format(rank, 'Cleaned up.'))
+            vbc_utils.msg(rank, 'Cleaned up.')
 
 if __name__ == "__main__":
     import sys
     import traceback
 
-    from utils import clean
-    
+    if len(sys.argv) < 4:
+        print('Usage: [mpiexec -np $NSLOTS] python mpi_grafic_bias_lc.py </path/to/ics/> <level> <patch size> [<verbose>]')
+        sys.exit()
+
     path = sys.argv[1]
     level = int(sys.argv[2])
     patch_size = float(sys.argv[3])
-
-    main(path, level, patch_size)
+    
+    # Optional verbose argument
+    if len(sys.argv) > 4:
+        verbose = bool(int(sys.argv[4]))
+    else:
+        verbose = True
+        
+    main(path, level, patch_size, verbose)
 
     print("Done!")

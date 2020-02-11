@@ -1,6 +1,6 @@
 import numpy as np
 
-def cic(x, dx, verbose=True):
+def cic(x, dx, verbose=False):
     """Takes a particle based quantity and interpolates it onto a grid
     using cloud-in-cell interpolation, so that it can be used in
     conjunction with gridded data. Designed to work with three

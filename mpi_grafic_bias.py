@@ -211,9 +211,11 @@ def main(path, level, patch_size, verbose=True):
 
     del biased_patches
     gc.collect()
-    
-    vbc_utils.msg(rank, 'Done patches', verbose)
 
+    vbc_utils.msg(rank, 'Done patches', verbose)
+    # Wait until everyone has done patches
+    barrier()
+    
 ############################## END OF WORK LOOP ###############################
     if rank == 0:
         import os
@@ -260,13 +262,14 @@ def main(path, level, patch_size, verbose=True):
             ics[0].write_field(output_field, field_name, out_dir=out_dir)
             vbc_utils.msg(rank, 'Wrote {0} field.'.format(field_name), verbose)
 
+            # Remove patches/ dir
             vbc_utils.clean()
             vbc_utils.msg(rank, 'Cleaned up.')
 
         # We have to wait until rank 0 has done the final reading and
         # writing, then everything can finish at the same time
-        barrier()
         vbc_utils.msg(rank, 'Done!')
+        barrier()
         finalize()
         
 

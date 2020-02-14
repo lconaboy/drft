@@ -1,9 +1,11 @@
 import numpy as np
+import grafic_tools as grafic
 from cosmology import compute_power
 
+
 def main(fn, boxsize=1.0):
-    x = np.loadtxt(fn)
-    power, k  = compute_power(x, boxsize)
+    cube = grafic.load_cube(fn)
+    power, k  = compute_power(cube.load_box(), cube.boxsize)
 
     np.savetxt(fn+'.power', power)
     np.savetxt(fn+'.bins', k)

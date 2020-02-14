@@ -431,7 +431,7 @@ class Cube:
 
         self.path = path
 
-        self.header = Header(self.fname)
+        self.header = Header(self.path)
         self.area = self.header.area
         self.size = self.header.size
         self.n = self.header.n

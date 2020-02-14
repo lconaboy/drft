@@ -272,3 +272,85 @@ def lingrowthfac(red, return_norm=False, **cosmo):
         return lingrowthfactor, lingrowtha0
     else:
         return lingrowthfactor
+
+def compute_power(field):
+    """Given a symmetric 3D field in real space, calculate the Fourier
+    transform and generate the power spectrum.
+
+    :param field:
+         (array) real field to calculate power spectrum of
+    :returns:     
+         (array) same shape as field, the 3D unbinned, unnormalised 
+         power spectrum of field
+         (array) length of one of field's axes, the k-space sample 
+         points
+    """
+    from scipy.fft import fftn, fftfreq, fftshift
+
+    n = field.shape
+    assert (n[0] == n[1] and n[0] == n[2]), 'Field should be symmetric'
+
+    # Calculate Fourier transform and components
+    field_k = fftn(field)
+    power_k = np.zeros(shape=field_k, type=complex)
+    k = fftfreq(n[0])
+
+    # Calculate the power spectrum, in a memory-efficient way
+    for i in range(n[2]):
+        power_k[:, :, i] = field_k[:, :, i] * field_k[:, :, i].conj
+    
+    return power_k, k
+
+
+def bin_power(power_k, k):
+    """Calculate the ensemble average of the power spectrum and bin
+    according to k
+
+    :param power_k: 
+        (array) 3D power spectrum
+    :param k:
+        (array) 1D array of k-space bin centres, assumes they are
+        linearly spaced
+    :returns: 
+        (array) power spectrum of same size as bin centres
+        (array) k-space bin centres
+    :rtype:
+
+    """
+    kx, ky, kz = np.meshgrid(k, k, k)
+
+    kk = np.sqrt(kx**2 + ky**2 + kz**2)
+    dk = k[1] - k[0]
+    
+    power = np.zeros(k.shape)
+
+    for i, ik in enumerate(k):
+        dkmin = ik - dk/2
+        dkmax = ik + dk/2
+        power[i] = np.mean(power_k[np.logical_and(kk > dkmin, kk <= dkmax)])
+    
+    return power, k
+
+
+def power_spectrum(field, boxsize):
+    """Returns the actual power spectrum of a field.
+
+    :param field:
+        (array) field to calculate power spectrum of
+    :param boxsize: 
+        (float) length of box 
+    :returns:
+        (array) binned and normalised power spectrum of field 
+        (array) bin centres of the power spectrum
+    """
+
+    # Get the 3D power spectrum
+    power, k = bin_power(compute_power(field))
+
+    # Normalise power spectrum
+    power /= boxsize**3
+    
+    # Convert k to physical units
+    k *=  (2 * np.pi)/boxsize
+    
+    return power, k

@@ -431,23 +431,6 @@ class Cube:
 
         self.path = path
 
-        self.header = Header(self.path)
-        self.area = self.header.area
-        self.size = self.header.size
-        self.n = self.header.n
-        self.N = self.n[0]
-        self.xoff = self.header.xoff
-        self.dx = self.header.dx
-        self.z = 1.0/self.header.cosmo[0] - 1.0
-
-        # h here is little h, i.e. H0 = 100*h km/s/Mpc
-        self.cosmo = {"aexp":self.header.cosmo[0],
-                      "omega_m":self.header.cosmo[1],
-                      "omega_l": self.header.cosmo[2],
-                      "h":self.header.cosmo[3], "z":self.z}
-
-
-        self.boxsize = self.N * self.dx
 
     def load_box(self):
         """Loads the entire grafic file into memory.
@@ -459,56 +442,18 @@ class Cube:
 
         """
         
-        origin = np.array([0, 0, 0])
-        N = self.N
+        with open(self.path, "rb") as f:
+            # Skip past the initial record marker
+            f.seek(4, 0)
+            # Read in size of cube
+            nx, ny, nz = np.fromfile(f, dtype=np.int32, count=3)
+            print('Read in cube of size ({0}, {1}, {2})'.format(nx, ny, nz))
+            # Skip past the final record marker
+            f.seek(4, 1)
 
-        area = self.area
-        size = self.size
-
-        fname = self.ic_fname()
-        
-        # Retrieve the number of points in each slice
-        (n1, n2, n3) = self.n
-
-        # Store the data in a patch, n2 comes before n1 because
-        # Fortran is column-major where Python is row-major, or if we
-        # write out in row-major we can read in in row-major and get
-        # the correct answer
-        # box = np.zeros(shape=(n2, n1, n3), dtype=np.float32)
-        box = np.zeros(shape=(n1, n2, n3), dtype=np.float32)
-
-        z0 = origin[2]
-        z = z0
-
-        with open(fname, "rb") as f:
-            # Seek past the header block to between the final header
-            # record marker and the inital data record marker
-            f.seek(size, 0)
-
-            # The z-axis changes the slowest
-            for iz in range(n3):
-                # Read the initial record marker, this provides a good
-                # check that we're in the right place
-                rm = np.fromfile(f, dtype=np.int32, count=1)
-                assert rm == self.area, 'For slab {0} expected initial record marker of {1} but got {2}'.format(iz, self.area, rm)
-                
-                # Pick out the plane, and reshape to (y, x) since
-                # Python is row-major where Fortran is column-major
-                # or, as long as we are consistent about writing out in
-                # row-major format, then we can read in in row-major
-                slab = np.fromfile(f, dtype=np.float32,
-                                   count=(n1 * n2)).reshape((n1, n2))
-                # slab = np.fromfile(f, dtype=np.float32,
-                #                    count=(n1 * n2)).reshape(n1, n2).transpose()
-
-                # Store the slab in the box
-                box[:, :, iz] = slab
-
-                # Read the final record marker, this provides a good
-                # check that we're in the right place
-                rm = np.fromfile(f, dtype=np.int32, count=1)
-                assert rm == self.area, 'For slab {0} expected end record marker of {1} but got {2}'.format(iz, self.area, rm)
-
+            box = np.fromfile(f, dtype=np.float32,
+                              count=(nx * ny * nz)).reshape(nx, ny, nz)
+            
         return box
 
     

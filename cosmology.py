@@ -285,20 +285,22 @@ def compute_power(field):
          (array) length of one of field's axes, the k-space sample 
          points
     """
-    from scipy.fft import fftn, fftfreq, fftshift
+    from scipy.fftpack import fftn, fftfreq, fftshift
 
     n = field.shape
     assert (n[0] == n[1] and n[0] == n[2]), 'Field should be symmetric'
 
     # Calculate Fourier transform and components
     field_k = fftn(field)
-    power_k = np.zeros(shape=field_k, type=complex)
+    power_k = np.zeros(shape=field_k.shape, dtype=complex)
     k = fftfreq(n[0])
 
     # Calculate the power spectrum, in a memory-efficient way
     for i in range(n[2]):
-        power_k[:, :, i] = field_k[:, :, i] * field_k[:, :, i].conj
-    
+        power_k[:, :, i] = field_k[:, :, i] * field_k[:, :, i].conj()
+
+    power_k = np.abs(power_k)
+
     return power_k, k
 
 
@@ -320,16 +322,16 @@ def bin_power(power_k, k):
     kx, ky, kz = np.meshgrid(k, k, k)
 
     kk = np.sqrt(kx**2 + ky**2 + kz**2)
-    dk = k[1] - k[0]
+    dk = abs(k[1] - k[0])
     
-    power = np.zeros(k.shape)
+    power_k1 = np.zeros(k.shape)
 
     for i, ik in enumerate(k):
         dkmin = ik - dk/2
         dkmax = ik + dk/2
-        power[i] = np.mean(power_k[np.logical_and(kk > dkmin, kk <= dkmax)])
+        power_k1[i] = np.mean(power_k[np.logical_and(kk > dkmin, kk <= dkmax)])
     
-    return power, k
+    return power_k1, k
 
 
 def power_spectrum(field, boxsize):
@@ -345,12 +347,13 @@ def power_spectrum(field, boxsize):
     """
 
     # Get the 3D power spectrum
-    power, k = bin_power(compute_power(field))
+    power_k, k = compute_power(field)
+    power_k, k = bin_power(power_k, k)
 
     # Normalise power spectrum
-    power /= boxsize**3
+    power_k /= boxsize**3
     
     # Convert k to physical units
-    k *=  (2 * np.pi)/boxsize
+    k *=  (2 * np.pi) / boxsize
     
-    return power, k
+    return power_k, k

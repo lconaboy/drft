@@ -414,7 +414,7 @@ class Snapshot:
         return '%s/ic_%s' % (self.level_dir, field)
 
 
-class Cube(path):
+class Cube:
     
     def __init__(self, path):
         """Class for reading in the result of using the RAMSES

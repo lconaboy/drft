@@ -347,7 +347,7 @@ def power_spectrum(field, boxsize):
     """
 
     # Get the 3D power spectrum
-    power_k, k = compute_power(field)
+    power_k, k = compute_power(field, boxsize)
     power_k, k = bin_power(power_k, k)
 
     # Normalise power spectrum

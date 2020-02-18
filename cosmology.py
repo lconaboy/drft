@@ -273,7 +273,7 @@ def lingrowthfac(red, return_norm=False, **cosmo):
     else:
         return lingrowthfactor
 
-def compute_power(field):
+def compute_power(field, boxsize):
     """Given a symmetric 3D field in real space, calculate the Fourier
     transform and generate the power spectrum.
 
@@ -293,7 +293,7 @@ def compute_power(field):
     # Calculate Fourier transform and components
     field_k = fftn(field)
     power_k = np.zeros(shape=field_k.shape, dtype=complex)
-    k = fftfreq(n[0])
+    k = np.linspace(np.pi * n[0] / boxsize)
 
     # Calculate the power spectrum, in a memory-efficient way
     for i in range(n[2]):
@@ -352,8 +352,5 @@ def power_spectrum(field, boxsize):
 
     # Normalise power spectrum
     power_k /= boxsize**3
-    
-    # Convert k to physical units
-    k *=  (2 * np.pi) / boxsize
     
     return power_k, k

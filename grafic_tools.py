@@ -170,7 +170,7 @@ class Snapshot:
 
         # Store the data in a patch, swapping the row and column for
         # loading, see comments passim ad nauseam
-        patch = np.zeros(shape=(N[1], N[0], N[2]), dtype=np.float32)
+        patch = np.zeros(shape=(N[0], N[1], N[2]), dtype=np.float32)
 
         with open(fname, "rb") as f:
             # Seek past the header block to between the final header
@@ -199,10 +199,10 @@ class Snapshot:
                 # Fortran is column-major, or we can use row-major as
                 # long as we're consistent about writing out in
                 # row-major
-                # slab = np.fromfile(f, dtype=np.float32,
-                #                    count=(n1 * n2)).reshape((n1, n2)).transpose()
                 slab = np.fromfile(f, dtype=np.float32,
-                                   count=(n1 * n2)).reshape((n2, n1))
+                                   count=(n1 * n2)).reshape((n1, n2)).transpose()
+                # slab = np.fromfile(f, dtype=np.float32,
+                #                    count=(n1 * n2)).reshape((n2, n1))
 
                 # Allow for periodic boundary conditions and the
                 # transposed array
@@ -218,8 +218,8 @@ class Snapshot:
                 # we are using row-major or column-major. Row-major is
                 # fine as long as we are consistent about writing out
                 # in row-major.
-                # patch[:, :, iz] = slab[xg, yg]
-                patch[:, :, iz] = slab[yg, xg]
+                patch[:, :, iz] = slab[xg, yg]
+                # patch[:, :, iz] = slab[yg, xg]
 
                 # Read the end record marker, this provides a good
                 # check that we're in the right place

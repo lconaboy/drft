@@ -267,11 +267,11 @@ def main(path, level, patch_size, verbose=True):
             # vbc_utils.clean()
             # vbc_utils.msg(rank, 'Cleaned up.')
 
-        # We have to wait until rank 0 has done the final reading and
-        # writing, then everything can finish at the same time
-        vbc_utils.msg(rank, 'Done!')
-        barrier()
-        # finalize()
+    # We have to wait until rank 0 has done the final reading and
+    # writing, then everything can finish at the same time
+    vbc_utils.msg(rank, 'Done!')
+    barrier()
+    finalize()
         
 
 if __name__ == "__main__":

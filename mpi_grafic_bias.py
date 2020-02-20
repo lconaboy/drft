@@ -159,6 +159,7 @@ def main(path, level, patch_size, verbose=True):
 
         # Compute the bias
         vbc_utils.msg(rank, "Computing bias.", verbose)
+        # Commented the below for testing
         k, b_c, b_b, b_vc, b_vb = vbc_utils.compute_bias(ics[4], vbc)
 
         # Convolve with field
@@ -167,7 +168,8 @@ def main(path, level, patch_size, verbose=True):
         velbx_biased = vbc_utils.apply_density_bias(ics[1], k, b_vb, velbx.shape[0], delta_x=velbx)
         velby_biased = vbc_utils.apply_density_bias(ics[2], k, b_vb, velby.shape[0], delta_x=velby)
         velbz_biased = vbc_utils.apply_density_bias(ics[3], k, b_vb, velbz.shape[0], delta_x=velbz)
-
+        
+        # print('deltab before', delta_biased)
         # Remove the padded region
         x_shape, y_shape, z_shape = delta_biased.shape
         delta_biased = delta_biased[0 + pad:x_shape - pad,
@@ -188,7 +190,6 @@ def main(path, level, patch_size, verbose=True):
         velbz_biased = velbz_biased[0 + pad:x_shape - pad,
                                     0 + pad:y_shape - pad,
                                     0 + pad:z_shape - pad]
-
         
         # Store
         biased_patches = [Patch(patch, dx, delta_biased, 'deltab'),
@@ -222,7 +223,7 @@ def main(path, level, patch_size, verbose=True):
         # Loop over fields
         for field_name in ['deltab', 'velbx', 'velby', 'velbz']:
             # Write new ICs
-            output_field = np.zeros(ics[0].n)
+            output_field = np.zeros((ics[0].n[1], ics[0].n[0], ics[0].n[2]))
 
             dest = []
             for i in range(size):
@@ -248,7 +249,7 @@ def main(path, level, patch_size, verbose=True):
                 z_min, z_max = (int((patch[2]) - (dx[2] / 2.)), int((patch[2]) + (dx[2] / 2.)))
 
                 # Place into output
-                output_field[x_min:x_max, y_min:y_max, z_min:z_max] = biased
+                output_field[y_min:y_max, x_min:x_max, z_min:z_max] = biased
 
             # Write the initial conditions
             ics_dir = "{0}/ics_ramses_vbc/".format(ics[0].level_dir)
@@ -263,14 +264,14 @@ def main(path, level, patch_size, verbose=True):
             vbc_utils.msg(rank, 'Wrote {0} field.'.format(field_name), verbose)
 
             # Remove patches/ dir
-            vbc_utils.clean()
-            vbc_utils.msg(rank, 'Cleaned up.')
+            # vbc_utils.clean()
+            # vbc_utils.msg(rank, 'Cleaned up.')
 
         # We have to wait until rank 0 has done the final reading and
         # writing, then everything can finish at the same time
         vbc_utils.msg(rank, 'Done!')
         barrier()
-        finalize()
+        # finalize()
         
 
 if __name__ == "__main__":

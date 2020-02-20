@@ -251,7 +251,7 @@ class Snapshot:
         (n1, n2, n3) = self.n
 
         # This is a bit inefficient but at least it is consistent
-        box = load_patch(origin, [n2, n1, n3])
+        box = self.load_patch(origin, [n2, n1, n3])
 
         # Store the data in a patch, n2 comes before n1 because
         # Fortran is column-major where Python is row-major, or if we

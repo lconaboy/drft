@@ -15,7 +15,7 @@ TODO
 physically motivated, perhaps even random 
 """
 
-def run_pyvbc(vbc, zstart, zend, dz, kmin=0.1, kmax=10000, n=64, delta=False, verbose=False):
+def run_pyvbc(vbc, zstart, zend, dz, kmin=1.0, kmax=1.0e3, n=64, delta=False, verbose=False):
     """
     Runs py_vbc and returns either the power spectrum or dimensionless power
     spectrum.

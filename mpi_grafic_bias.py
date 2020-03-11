@@ -6,17 +6,7 @@ import numpy as np
 """
 TODO
 
-- swap ics from a list to a dictionary for more explicit indexing
-
-- figure out padding stuff -- currently there is a region of size pad
-around the edge that isn't included, as the periodic access of data
-currently isn't implemented
  """
-
-# VERBOSE = 1  # 0 for all, >0 for just patch, <0 for none
-P = False
-B = False
-C = False
 
 class Result(object):
     '''
@@ -49,7 +39,7 @@ class Patch(object):
         self.field = field
 
 
-def main(path, level, patch_size, verbose=True):
+def work(path, level, patch_size, verbose=True):
     '''
     Writes a new set of grafIC initial conditions with a drift velocity dependent
     bias in the power spectrum
@@ -216,17 +206,34 @@ def main(path, level, patch_size, verbose=True):
     vbc_utils.msg(rank, 'Done patches', verbose)
     # Wait until everyone has done patches
     barrier()
+    finalize()
     
 ############################## END OF WORK LOOP ###############################
+def write(path, level, size, verbose=True):
+    import utils as vbc_utils
+    from utils import divisors
+    import grafic_tools as grafic
+    from mpi4py import MPI
+    import gc
+    import os
+    import time
+
+    # MPI stuff
+    comm = MPI.COMM_WORLD
+    size = comm.Get_size()
+    rank = comm.Get_rank()
+    barrier = comm.Barrier
+    finalize = MPI.Finalize
+
     if rank == 0:
-        import os
+        vbc_utils.msg(rank, "Writing fields.", verbose)
         # Loop over fields
         for field_name in ['deltab', 'velbx', 'velby', 'velbz']:
             # Write new ICs
             output_field = np.zeros((ics[0].n[1], ics[0].n[0], ics[0].n[2]))
 
             dest = []
-            for i in range(size):
+            for i in range(nproc):
                 # Unpickle
                 with open(r"patches/patch_{0}{1}.p".format(field_name, i), "rb") as f:
                     vbc_utils.msg(rank, 'Loading {0} pickle [{1}/{2}]'.format(field_name, i+1, size), verbose)
@@ -279,17 +286,24 @@ if __name__ == "__main__":
     import traceback
 
     if len(sys.argv) < 4:
-        print('Usage: [mpiexec -np $NSLOTS] python mpi_grafic_bias_lc.py </path/to/ics/> <level> <patch size> [<verbose>]')
+        print('Usage: [mpiexec -np $NSLOTS] python mpi_grafic_bias_lc.py </path/to/ics/> <level> <patch size> <mode> <n_processors> [<verbose>]', flush=True)
         sys.exit()
 
     path = sys.argv[1]
     level = int(sys.argv[2])
     patch_size = float(sys.argv[3])
+    mode = sys.argv[4]
+    size = int(sys.argv[5])
     
     # Optional verbose argument
-    if len(sys.argv) > 4:
-        verbose = bool(int(sys.argv[4]))
+    if len(sys.argv) > 6:
+        verbose = bool(int(sys.argv[6]))
     else:
         verbose = True
         
-    main(path, level, patch_size, verbose)
+    if mode is 'work':
+        work(path, level, patch_size, verbose)
+    elif mode is 'write':
+        write(path, level, size, verbose)
+    else:
+        print("'mode' should be 'work' or 'write'.")

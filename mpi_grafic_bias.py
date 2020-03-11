@@ -69,7 +69,7 @@ def work(path, level, patch_size, verbose=True):
             grafic.derive_vbc(path, level)
         # Make patches dir
         if os.path.isdir("./patches"):
-            raise Exception('Patches already exist. Remove and re-run.')
+            raise Exception("'patches' directory already exists. Either run in 'write' mode or remove and re-run in 'work' mode.")
         elif not os.path.isdir("./patches"):
             os.mkdir("./patches")
             vbc_utils.msg(rank, 'Made patches directory.', verbose)
@@ -188,7 +188,7 @@ def work(path, level, patch_size, verbose=True):
                           Patch(patch, dx, velbz_biased, 'velbz')]
 
         for patch in biased_patches:
-            with open(r"patches/patch_{0}{1}.p".format(patch.field, rank), "ab") as f:
+            with open(r"patches/patch_{0}{1:03d}.p".format(patch.field, rank), "ab") as f:
                 pickle.dump(patch, f)
 
         del vbc
@@ -209,7 +209,7 @@ def work(path, level, patch_size, verbose=True):
     finalize()
     
 ############################## END OF WORK LOOP ###############################
-def write(path, level, size, verbose=True):
+def write(path, level, verbose=True):
     import utils as vbc_utils
     from utils import divisors
     import grafic_tools as grafic
@@ -217,6 +217,7 @@ def write(path, level, size, verbose=True):
     import gc
     import os
     import time
+    import glob
 
     # MPI stuff
     comm = MPI.COMM_WORLD
@@ -226,16 +227,25 @@ def write(path, level, size, verbose=True):
     finalize = MPI.Finalize
 
     if rank == 0:
+        # Make patches dir
+        if not os.path.isdir("./patches"):
+            raise Exception("'patches' directory does not exist. Run in 'work' mode first.")
+
         vbc_utils.msg(rank, "Writing fields.", verbose)
         # Loop over fields
         for field_name in ['deltab', 'velbx', 'velby', 'velbz']:
+            # Get all of the patches for each field name
+            fns = glob.glob('./patches/*' + field_name + '*')
+            fns.sort()
+            size = len(fns)
+            
             # Write new ICs
             output_field = np.zeros((ics[0].n[1], ics[0].n[0], ics[0].n[2]))
 
             dest = []
-            for i in range(nproc):
+            for fn in fns:
                 # Unpickle
-                with open(r"patches/patch_{0}{1}.p".format(field_name, i), "rb") as f:
+                with open(fn, "rb") as f:
                     vbc_utils.msg(rank, 'Loading {0} pickle [{1}/{2}]'.format(field_name, i+1, size), verbose)
                     while True:
                         try:
@@ -286,24 +296,23 @@ if __name__ == "__main__":
     import traceback
 
     if len(sys.argv) < 4:
-        print('Usage: [mpiexec -np $NSLOTS] python mpi_grafic_bias_lc.py </path/to/ics/> <level> <patch size> <mode> <n_processors> [<verbose>]', flush=True)
+        print('Usage: [mpiexec -np $NSLOTS] python mpi_grafic_bias_lc.py </path/to/ics/> <level> <patch size> <mode> [<verbose>]', flush=True)
         sys.exit()
 
     path = sys.argv[1]
     level = int(sys.argv[2])
     patch_size = float(sys.argv[3])
     mode = sys.argv[4]
-    size = int(sys.argv[5])
     
     # Optional verbose argument
-    if len(sys.argv) > 6:
-        verbose = bool(int(sys.argv[6]))
+    if len(sys.argv) > 5:
+        verbose = bool(int(sys.argv[5]))
     else:
         verbose = True
         
     if mode is 'work':
         work(path, level, patch_size, verbose)
     elif mode is 'write':
-        write(path, level, size, verbose)
+        write(path, level, verbose)
     else:
         print("'mode' should be 'work' or 'write'.")

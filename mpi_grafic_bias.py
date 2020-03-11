@@ -232,6 +232,10 @@ def write(path, level, verbose=True):
             raise Exception("'patches' directory does not exist. Run in 'work' mode first.")
 
         vbc_utils.msg(rank, "Writing fields.", verbose)
+        
+        ics = [grafic.load_snapshot(path, level, field=field) for field in
+               ['deltab', 'velbx', 'velby', 'velbz', 'vbc']]
+
         # Loop over fields
         for field_name in ['deltab', 'velbx', 'velby', 'velbz']:
             # Get all of the patches for each field name
@@ -243,7 +247,7 @@ def write(path, level, verbose=True):
             output_field = np.zeros((ics[0].n[1], ics[0].n[0], ics[0].n[2]))
 
             dest = []
-            for fn in fns:
+            for i, fn in enumerate(fns):
                 # Unpickle
                 with open(fn, "rb") as f:
                     vbc_utils.msg(rank, 'Loading {0} pickle [{1}/{2}]'.format(field_name, i+1, size), verbose)
@@ -302,7 +306,7 @@ if __name__ == "__main__":
     path = sys.argv[1]
     level = int(sys.argv[2])
     patch_size = float(sys.argv[3])
-    mode = sys.argv[4]
+    mode = str(sys.argv[4])
     
     # Optional verbose argument
     if len(sys.argv) > 5:
@@ -310,9 +314,9 @@ if __name__ == "__main__":
     else:
         verbose = True
         
-    if mode is 'work':
+    if mode == 'work':
         work(path, level, patch_size, verbose)
-    elif mode is 'write':
+    elif mode == 'write':
         write(path, level, verbose)
     else:
-        print("'mode' should be 'work' or 'write'.")
+        print("'mode' is {0} should be 'work' or 'write'.".format(mode))

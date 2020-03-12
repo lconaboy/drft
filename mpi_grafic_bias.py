@@ -313,10 +313,17 @@ if __name__ == "__main__":
         verbose = bool(int(sys.argv[5]))
     else:
         verbose = True
-        
-    if mode == 'work':
-        work(path, level, patch_size, verbose)
-    elif mode == 'write':
-        write(path, level, verbose)
-    else:
-        print("'mode' is {0} should be 'work' or 'write'.".format(mode))
+
+    # Run the main loop
+    try:    
+        if mode == 'work':
+            work(path, level, patch_size, verbose)
+        elif mode == 'write':
+            write(path, level, verbose)
+        else:
+            print("'mode' is {0} -- should be 'work' or 'write'.".format(mode))
+    except Exception as e:
+        # Catch excpetions
+        from mpi4py import MPI
+        MPI.COMM_WORLD.Abort(96)
+        print(e, flush=True)

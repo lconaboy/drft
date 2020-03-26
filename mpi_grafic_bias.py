@@ -67,11 +67,14 @@ def work(path, level, patch_size, verbose=True):
         if not os.path.isfile(path+"level_{0:03d}/ic_vbc".format(level)):
             vbc_utils.msg(rank, 'Deriving ic_vbc.', verbose)
             grafic.derive_vbc(path, level)
-        # Make patches dir
-        if os.path.isdir("./patches"):
-            raise Exception("'patches' directory already exists. Either run in 'write' mode or remove and re-run in 'work' mode.")
-        elif not os.path.isdir("./patches"):
+        # Make root patches dir if it doesn't exist
+        if not os.path.isdir("./patches"):
             os.mkdir("./patches")
+        # Make patches dir for level
+        if os.path.isdir("./patches/level_{0:03d}".format(level)):
+            raise Exception("'patches' directory already exists. Either run in 'write' mode or remove and re-run in 'work' mode.")
+        elif not os.path.isdir("./patches/level_{0:03d}".format(level)):
+            os.mkdir("./patches/level_{0:03d}".format(level))
             vbc_utils.msg(rank, 'Made patches directory.', verbose)
     else:
         # Wait for rank 0 to write the velb, velc and vbc fields
@@ -188,7 +191,7 @@ def work(path, level, patch_size, verbose=True):
                           Patch(patch, dx, velbz_biased, 'velbz')]
 
         for patch in biased_patches:
-            with open(r"patches/patch_{0}{1:03d}.p".format(patch.field, rank), "ab") as f:
+            with open(r"patches/level_{0:03d}/patch_{1}{2:03d}.p".format(level, patch.field, rank), "ab") as f:
                 pickle.dump(patch, f)
 
         del vbc
@@ -228,8 +231,8 @@ def write(path, level, verbose=True):
 
     if rank == 0:
         # Make patches dir
-        if not os.path.isdir("./patches"):
-            raise Exception("'patches' directory does not exist. Run in 'work' mode first.")
+        if not os.path.isdir("./patches/level_{0:03d}".format(level)):
+            raise Exception("'patches' directory does not exist for this level. Run in 'work' mode first.")
 
         vbc_utils.msg(rank, "Writing fields.", verbose)
         
@@ -239,7 +242,7 @@ def write(path, level, verbose=True):
         # Loop over fields
         for field_name in ['deltab', 'velbx', 'velby', 'velbz']:
             # Get all of the patches for each field name
-            fns = glob.glob('./patches/*' + field_name + '*')
+            fns = glob.glob('./patches/level_{0:03d}/*'.format(level) + field_name + '*')
             fns.sort()
             size = len(fns)
             

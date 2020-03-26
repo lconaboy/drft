@@ -23,7 +23,7 @@ def vbc_rms(vbc_field):
 
 def msg(rank, s, verbose=True):
     if verbose:
-        print('[rank {0}]: {1}'.format(rank, s))
+        print('[rank {0}]: {1}'.format(rank, s), flush=True)
     else:
         return
 

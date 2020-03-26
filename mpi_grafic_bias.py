@@ -325,5 +325,6 @@ if __name__ == "__main__":
     except Exception as e:
         # Catch excpetions
         from mpi4py import MPI
-        MPI.COMM_WORLD.Abort(96)
         print(e, flush=True)
+        MPI.COMM_WORLD.Abort(96)
+

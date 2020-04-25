@@ -293,8 +293,34 @@ class Snapshot:
         #         assert rm == self.area, 'For slab {0} expected end record marker of {1} but got {2}'.format(iz, self.area, rm)
 
         return box
+        
+    def plot_slice(self, ret_im=False):
+        #from FortranFile import FortranFile
+        from scipy.io import FortranFile
+        import matplotlib.pyplot as plt
+        
+        fname = self.ic_fname()
 
-    
+        f = FortranFile(fname)
+        # Seek past the header block to between the final header
+        # record marker and the inital data record marker
+        # f.seek(size, 0)
+
+        # slc = f.read_reals(float).reshape((self.n[0], self.n[1]), order='F')
+        f.read_record('i4')  # read header, they aren't all ints but we don't need them anyway
+        slc = f.read_reals('f4').reshape((self.n[0], self.n[1]), order='F')
+
+        fig, ax = plt.subplots(figsize=(6, 6))
+        # imsave('{0}{1}_{2}_slice.png'.format(self.path, self.field, self.level), slc, cmap='gist_stern')
+        im = ax.imshow(slc, cmap='gist_stern')
+        plt.colorbar(im)
+        plt.savefig('{0}{1}_{2}_slice.pdf'.format(self.path, self.field, self.level))
+        plt.close('all')
+        
+
+        if ret_im: return slc
+
+
     def ic_fname(self):
         """Generates the filename string for the IC files, given the path,
         level and field supplied to Snapshot.
@@ -508,6 +534,7 @@ def grid_velc(path, level):
     coords = ['x', 'y', 'z']
     qty = ['pos', 'vel']
     fields = [['{0}c{1}'.format(q, c) for c in coords] for q in qty]
+    print(fields)
     
     # Load up each snapshot
     s = [[load_snapshot(path, level, f) for f in field] for field in fields]
@@ -569,9 +596,9 @@ def derive_vel(path, level, species):
     
 
 def derive_vbc(path, level):
-    """Calculates the vbc field from the velb and velc fields. If the velb
-    and velc fields don't already exist, this function creates
-    them. Then writes the ic_vbc file.
+    """Calculates the velb, gridded velc and vbc fields using the
+    subroutine velc from cic.f95. Make sure that cic.f95 has been
+    compiled with f2py before running.
 
     :param path: 
         (str) path to directory containing the level_... directories
@@ -584,33 +611,66 @@ def derive_vbc(path, level):
 
     """
     import os
-    
-    # Check that the velb and gridded velc fields have been written
-    if not os.path.isfile(path+'level_{0:03d}/ic_velb'.format(level)):
-        derive_vel(path, level, species='b')
+    import cic
 
-    if not os.path.isfile(path+'level_{0:03d}/ic_velcg'.format(level)):
-        # Check whether individual components have been written
-        if not os.path.isfile(path+'level{0:03d}/ic_velcgx'.format(level)):
-            grid_velc(path, level)
-    
-        derive_vel(path, level, species='cg')
+    level_path = path+'level_{0:03d}/'
 
-    # if they have, go ahead and load them up
-    vb = load_snapshot(path, level, 'velb')
-    vc = load_snapshot(path, level, 'velcg')
-    
-    # Check they are the same size
-    assert(vb.N == vc.N), 'ic_velb and ic_velc different sizes.'
-    N = vb.N
-    
-    # if so, load up the actual data
-    vb_data = vb.load_box()
-    vc_data = vc.load_box()
+    # Check that none of the fields exist already, otherwise cic will
+    # throw an error
+    if os.path.isfile(level_path+'ic_velb'):
+        raise Exception(level_path+'ic_velb exists')
+    elif os.path.isfile(level_path+'ic_velcg'):
+        raise Exception(level_path+'ic_velcg exists')
+    elif os.path.isfile(level_path+'ic_vbc'):
+        raise Exception(level_path+'ic_vbc exists')
 
-    # Now calculate v_bc
-    vbc = vb_data - vc_data
+    cic.velc(level_path)
 
-    # And finally write the field
-    out_dir = vb.level_dir
-    vb.write_field(vbc, 'vbc', out_dir=out_dir)
+
+def derive_deltac(path, level, omega_b=None):
+    """Calculates the deltac field by CIC interpolating the CDM particle
+    positions, using the delc routine from cic.f95. Make sure that
+    cic.f95 has been compiled with f2py before running.
+
+    :param path: 
+        (str) path to directory containing the level_... directories
+    :param level: 
+        (int) level to load
+    :param omega_b:
+        (float or None) value of baryon density parameter, if None this 
+        is read from the py_vbc params
+    :returns: 
+        None
+    :rtype:
+        NoneType
+
+    """
+    import os
+    import cic
+    
+    level_path = path+'level_{0:03d}/'.format(level)
+
+    print('Deriving deltac field')
+    
+    # Check that none of the fields exist already, otherwise cic will
+    # throw an error
+    if os.path.isfile(level_path+'ic_deltac'):
+        raise Exception(level_path+'ic_deltac exists')
+
+    # Get omega_b
+    if omega_b is None:
+        import configparser
+        config_path, _ = os.path.split(__file__)
+        config_fname = 'py_vbc/planck2018_params.ini'
+        config = configparser.ConfigParser()
+        config.read(config_path + '/' + config_fname)
+
+        omega_b = np.float32(config.get('cosmology', 'omega_b'))
+        print('---- using py_vbc params for omega_b: ', omega_b)
+    elif type(omega_b) == type(0.1):
+        omega_b = np.float32(omega_b)
+        print('---- using provided value for omega_b: ', omega_b)        
+    else:
+        raise Exception('omega_b should be float or None')
+        
+    cic.delc(level_path, omega_b)

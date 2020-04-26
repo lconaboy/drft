@@ -113,3 +113,40 @@ class Cosmology:
                     'h': params[2]}
 
 
+################################################################################
+###############################  OLD BELOW HERE  ###############################
+################################################################################
+
+def _fft_sample_spacing(N, boxsize):
+    """
+    Return the sample spacing in Fourier space, given some symmetric 3D box in real space
+    with N elements per dimension and length L.
+    See https://gitorious.org/bubble/szclusters/commit/da1402ef95f4d40c28f53f88c99bf079063308c7
+    """
+    kk = np.zeros([N, N, N], dtype=np.float32)
+    kx = np.zeros([N, N, N], dtype=np.float32)
+    ky = np.zeros([N, N, N], dtype=np.float32)
+    kz = np.zeros([N, N, N], dtype=np.float32)
+    kx, ky, kz = _fft_sample_spacing_components(N)
+    fac = (2. * np.pi / boxsize)
+    kk = np.sqrt(kx ** 2. + ky ** 2. + kz ** 2.) * fac
+    return kk
+
+def _fft_sample_spacing_components(N):
+    """
+    Return the sample spacing in Fourier space, given some symmetric 3D box in real space
+    with N elements per dimension and length L.
+    See https://gitorious.org/bubble/szclusters/commit/da1402ef95f4d40c28f53f88c99bf079063308c7
+    """
+
+    NN = np.zeros(N, dtype=np.int32)
+    kx = np.zeros([N, N, N], dtype=np.float32)
+    ky = np.zeros([N, N, N], dtype=np.float32)
+    kz = np.zeros([N, N, N], dtype=np.float32)
+
+    NN = (N * np.fft.fftfreq(N, 1.)).astype(np.int32)
+    for i in range(N):
+        kx[NN[i], :, :] = NN[i]
+        ky[:, NN[i], :] = NN[i]
+        kz[:, :, NN[i]] = NN[i]
+    return kx, ky, kz

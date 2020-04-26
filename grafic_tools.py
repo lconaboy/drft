@@ -613,7 +613,7 @@ def derive_vbc(path, level):
     import os
     import cic
 
-    level_path = path+'level_{0:03d}/'
+    level_path = path+'level_{0:03d}/'.format(level)
 
     # Check that none of the fields exist already, otherwise cic will
     # throw an error

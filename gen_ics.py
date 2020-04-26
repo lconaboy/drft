@@ -107,7 +107,7 @@ def main(path, level, um=None):
         except:
             print('-------- not copying refmap')
 
-        # Might not be have passive variables
+        # Might not have passive variables
         try:
             shutil.copy2(path+'level_{0:03d}/ic_pvar_00001'.format(level),
                          write_path+'ic_pvar_00001')

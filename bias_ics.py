@@ -378,7 +378,7 @@ def write(path, level, lin, verbose=True):
             ics[0].write_field(output_field, field, out_dir=out_dir)
             vbc_utils.msg(rank, 'Wrote {0} field.'.format(field), verbose)
 
-            # Remove patches/ dir
+            # Remove patches/level_xxx dir
             vbc_utils.clean()
             vbc_utils.msg(rank, 'Cleaned up.')
 

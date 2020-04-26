@@ -201,14 +201,14 @@ def which(program):
 
     return None
 
-def clean():
+def clean(level):
     """Clean up after execution has finished. Anything that needs to be
     got rid of can be done here.
     """
     import shutil
 
     # Remove patches/
-    shutil.rmtree('./patches/')
+    shutil.rmtree('./patches/level_{0:03d}'.format(level))
     
 
 

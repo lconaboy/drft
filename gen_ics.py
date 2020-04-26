@@ -1,4 +1,4 @@
-def main(path, level, um=None):
+def main(path, level, cur_dir=False, um=None):
     """Function for generating initial conditions files using the
     ic_deltab, ic_deltac files and various linear approximations,
     which are detailed in linear.py. Writes the IC files and a
@@ -8,6 +8,8 @@ def main(path, level, um=None):
         (str) path to original IC files (they won't be modified)
     :param level: 
         (int) level of the IC files
+    :param cur_dir:
+        (bool) write the IC files to the current dir (i.e. path/level_xxx)
     :param um: 
         (str or None) what to do with unmodified ic_deltab (and 
         possibly ic_refmap and ic_pvar_00001): 'cp' to copy them 
@@ -23,8 +25,13 @@ def main(path, level, um=None):
     import grafic_tools as grafic
     
     xyz = 'xyz'
-    write_dir = path + 'level_{0:03d}/ics_linear/'.format(level)
-    write_path = path + 'level_{0:03d}/ics_linear/level_{0:03d}/'.format(level)
+    
+    if cur_dir:
+        write_dir = path
+        write_path = path + 'level_{0:03d}/'.format(level)
+    else:
+        write_dir = path + 'level_{0:03d}/ics_linear/'.format(level)
+        write_path = path + 'level_{0:03d}/ics_linear/level_{0:03d}/'.format(level)
 
     print('Generating initial conditon files for level {0} using linear approximations'.format(level))
 

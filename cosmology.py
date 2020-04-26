@@ -133,10 +133,14 @@ def _fft_sample_spacing(N, boxsize):
     return kk
 
 def _fft_sample_spacing_components(N):
-    """
-    Return the sample spacing in Fourier space, given some symmetric 3D box in real space
+    """Return the sample spacing in Fourier space, given some symmetric 3D box in real space
     with N elements per dimension and length L.
     See https://gitorious.org/bubble/szclusters/commit/da1402ef95f4d40c28f53f88c99bf079063308c7
+
+    LC (26/4) -- after a quick check, these seem to return the kx, ky
+    and kz components in the expected order (so no need to swap kx and
+    ky as in linear.py)
+
     """
 
     NN = np.zeros(N, dtype=np.int32)

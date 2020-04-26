@@ -35,18 +35,20 @@ def main(path, level, cur_dir=False, um=None):
 
     print('Generating initial conditon files for level {0} using linear approximations'.format(level))
 
-    # Make directories to store linear ICs
-    if not os.path.isdir(write_dir):
-        os.mkdir(write_dir)
-    # Make level directory to store linear ICs
-    if not os.path.isdir(write_path):
-        os.mkdir(write_path)
-    # Check the ics_linear directory is empty
-    if len(os.listdir(write_path)) > 0:
-        raise Exception(write_path+' not empty')
+    # If not reusing the directory, make a new one
+    if not cur_dir:
+        # Make directories to store linear ICs
+        if not os.path.isdir(write_dir):
+            os.mkdir(write_dir)
+        # Make level directory to store linear ICs
+        if not os.path.isdir(write_path):
+            os.mkdir(write_path)
+        # Check the ics_linear directory is empty
+        if len(os.listdir(write_path)) > 0:
+            raise Exception(write_path+' not empty')
 
     # Generate deltac field if it doesn't exist
-    if not os.path.isfile(path+'level_{0:03d}/ic_deltac'.format(level)):
+    if not os.path.isfile(write_path+'ic_deltac'):
         grafic.derive_deltac(path, level)
 
     # Generate the velocity fields for the baryons

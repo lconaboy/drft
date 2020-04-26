@@ -129,8 +129,13 @@ if __name__ == '__main__':
 
     path = sys.argv[1]
     level = int(sys.argv[2])
+    cur_dir = False
     um = None
+    
+    # Optional
     if len(sys.argv) > 3:
-        um = sys.argv[3]
+        cur_dir = bool(int(sys.argv[3]))
+    if len(sys.argv) > 4:
+        um = sys.argv[4]
 
-    main(path, level, um)
+    main(path, level, cur_dir, um)

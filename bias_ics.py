@@ -155,7 +155,7 @@ def work(path, level, patch_size, lin=False, verbose=True):
             # Initialise
             deltab = None
             deltac = None
-            vbc= None
+            vbc = None
 
             vbc_utils.msg(rank, "Loading patch: {0}.".format(patch), verbose)
             deltab = ics[0].load_patch(origin, dx_eps)
@@ -169,8 +169,8 @@ def work(path, level, patch_size, lin=False, verbose=True):
 
             # Convolve with field
             vbc_utils.msg(rank, "Performing convolution.", verbose)
-            deltab_biased = vbc_utils.apply_density_bias(ics[0], k, b_b, deltac.shape[0], delta_x=deltac)
-            deltac_biased = vbc_utils.apply_density_bias(ics[1], k, b_c, deltab.shape[0], delta_x=deltab)
+            deltab_biased = vbc_utils.apply_density_bias(ics[0], k, b_b, deltab.shape[0], delta_x=deltab)
+            deltac_biased = vbc_utils.apply_density_bias(ics[1], k, b_c, deltac.shape[0], delta_x=deltac)
 
             # print('deltab before', delta_biased)
             # Remove the padded region

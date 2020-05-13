@@ -617,14 +617,20 @@ def derive_vbc(path, level):
 
     # Check that none of the fields exist already, otherwise cic will
     # throw an error
-    if os.path.isfile(level_path+'ic_velb'):
-        raise Exception(level_path+'ic_velb exists')
-    elif os.path.isfile(level_path+'ic_velcg'):
-        raise Exception(level_path+'ic_velcg exists')
-    elif os.path.isfile(level_path+'ic_vbc'):
+    if os.path.isfile(level_path+'ic_vbc'):
         raise Exception(level_path+'ic_vbc exists')
+    
+    if ((not os.path.isfile(level_path+'ic_velcgx')) and
+        (not os.path.isfile(level_path+'ic_velcgy')) and
+        (not os.path.isfile(level_path+'ic_velcgz'))):
+        print('Deriving ic_velcg fields')
+        cic.gen_velcg(level_path)
 
-    cic.velc(level_path)
+    else:
+        print('Using existing ic_velcg fields')
+    
+
+    cic.gen_vbc(level_path)
 
 
 def derive_deltac(path, level, omega_b=None):
@@ -673,4 +679,4 @@ def derive_deltac(path, level, omega_b=None):
     else:
         raise Exception('omega_b should be float or None')
         
-    cic.delc(level_path, omega_b)
+    cic.gen_delc(level_path, omega_b)

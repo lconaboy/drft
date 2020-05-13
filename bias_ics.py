@@ -68,16 +68,7 @@ def work(path, level, patch_size, lin=False, verbose=True):
     vbc_utils.msg(rank, "Loading initial conditions.", verbose)
     
     if rank == 0:        
-        # First, derive any fields we need that don't already exist. Start with vbc
-        if not os.path.isfile(path+"level_{0:03d}/ic_vbc".format(level)):
-            vbc_utils.msg(rank, 'Deriving ic_vbc.', verbose)
-            grafic.derive_vbc(path, level)
-        # Make sure the deltac field exists, if we need it
-        if (lin) and (not os.path.isfile(path+"level_{0:03d}/ic_deltac".format(level))):
-            vbc_utils.msg(rank, 'Deriving ic_deltac.', verbose)
-            grafic.derive_deltac(path, level)
-
-        # Make root patches dir if it doesn't exist
+        # First, make root patches dir if it doesn't exist
         if not os.path.isdir("./patches"):
             os.mkdir("./patches")
         # Make patches dir for level
@@ -86,6 +77,15 @@ def work(path, level, patch_size, lin=False, verbose=True):
         elif not os.path.isdir("./patches/level_{0:03d}".format(level)):
             os.mkdir("./patches/level_{0:03d}".format(level))
             vbc_utils.msg(rank, 'Made patches directory.', verbose)
+
+        # Next, derive any fields we need that don't already exist. Start with vbc
+        if not os.path.isfile(path+"level_{0:03d}/ic_vbc".format(level)):
+            vbc_utils.msg(rank, 'Deriving ic_vbc.', verbose)
+            grafic.derive_vbc(path, level)
+        # Make sure the deltac field exists, if we need it
+        if (lin) and (not os.path.isfile(path+"level_{0:03d}/ic_deltac".format(level))):
+            vbc_utils.msg(rank, 'Deriving ic_deltac.', verbose)
+            grafic.derive_deltac(path, level)
 
     else:
         # Wait for rank 0 to write the velb, velc and vbc fields

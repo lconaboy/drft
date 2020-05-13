@@ -630,7 +630,7 @@ def derive_vbc(path, level):
         print('Using existing ic_velcg fields')
     
 
-    cic.gen_vbc(level_path)
+    cic.gen_vbc(level_path, level)
 
 
 def derive_deltac(path, level, omega_b=None):

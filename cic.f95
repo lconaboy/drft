@@ -192,7 +192,7 @@ subroutine gen_delc(path, omega_b)
 end subroutine gen_delc
 
 
-subroutine gen_velcg(path)
+subroutine gen_velcg(path, l)
   ! --------------------
   !
   ! Subroutine for computing CIC interpolated gridded velocities.
@@ -207,7 +207,8 @@ subroutine gen_velcg(path)
   
   character (len=200), intent(in) :: path
   character (len=3) :: xyz
-  
+
+  integer, intent(in) :: l
   integer :: hblk = 44
   integer :: mblk
   integer :: i, j, k, n1, n2, n3
@@ -215,12 +216,14 @@ subroutine gen_velcg(path)
   integer, parameter :: f=50
   real :: mp = 1.0
   real :: dxx, dyy, dzz, tx, ty, tz
-  real :: dxini, x1off, x2off, x3off, astart, omegam, omegal, omega_b, h0
+  real :: dx0, dxini, x1off, x2off, x3off, astart, omegam, omegal, omega_b, h0
   real, parameter :: rhoc = 2.775e11  ! h^2 Msol/Mpc^3
   real, allocatable, dimension(:, :, :) :: dx, dy, dz, vc, vcg
 
 
   xyz = 'xyz'
+
+  dx0 = 0.5 ** real(l)  ! Cell spacing for level i
   
   write(6, *) 'Interpolating CDM velocities'
 
@@ -287,9 +290,9 @@ subroutine gen_velcg(path)
               ! Displacement of the particle in the current parent
               ! cell at (i, j, k), converting from cell width of dxini
               ! to a cell width of one
-              dxx = dx(i, j, k) / dxini
-              dyy = dy(i, j, k) / dxini
-              dzz = dz(i, j, k) / dxini
+              dxx = dx(i, j, k) * dx0 / dxini
+              dyy = dy(i, j, k) * dx0 / dxini
+              dzz = dz(i, j, k) * dx0 / dxini
 
               ! Convenience variables
               tx = 1.0 - dxx
@@ -341,7 +344,7 @@ subroutine gen_vbc(path)
 
   character (len=200), intent(in) :: path
   character (len=3) :: xyz
-  
+
   integer :: hblk = 44
   integer :: mblk
   integer :: i, j, k, n1, n2, n3

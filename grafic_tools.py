@@ -624,13 +624,13 @@ def derive_vbc(path, level):
         (not os.path.isfile(level_path+'ic_velcgy')) and
         (not os.path.isfile(level_path+'ic_velcgz'))):
         print('Deriving ic_velcg fields')
-        cic.gen_velcg(level_path)
+        cic.gen_velcg(level_path, level)
 
     else:
         print('Using existing ic_velcg fields')
     
 
-    cic.gen_vbc(level_path, level)
+    cic.gen_vbc(level_path)
 
 
 def derive_deltac(path, level, omega_b=None):

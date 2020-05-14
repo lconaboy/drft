@@ -294,7 +294,7 @@ class Snapshot:
 
         return box
         
-    def plot_slice(self, ret_im=False):
+    def plot_slice(self, nslc=0, ret_im=False):
         #from FortranFile import FortranFile
         from scipy.io import FortranFile
         import matplotlib.pyplot as plt
@@ -308,6 +308,11 @@ class Snapshot:
 
         # slc = f.read_reals(float).reshape((self.n[0], self.n[1]), order='F')
         f.read_record('i4')  # read header, they aren't all ints but we don't need them anyway
+
+        # Skip first n slices
+        for i in range(nslc):
+            f.read_record('f4')
+
         slc = f.read_reals('f4').reshape((self.n[0], self.n[1]), order='F')
 
         fig, ax = plt.subplots(figsize=(6, 6))

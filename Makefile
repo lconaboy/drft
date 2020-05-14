@@ -3,4 +3,4 @@ all:
 
 .PHONY : clean
 clean :
-	rm cic.cpython*
+	rm -f cic.cpython*

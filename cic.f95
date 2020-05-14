@@ -1,9 +1,25 @@
 ! Collection of subroutines designed to calculate CIC interpolated
 ! quanitites. For use with f2py.
 !
+! Example
+!
+!     from cic import gen_delc
+!
+!     path = /path/to/ics/
+!     l = int(level)
+!     omega_b = float(omega_b)
+!
+!     gen_delc(path, l, omega_b)
+!
+! Notes
+!
+!    - displacements in grafic ic_posc files are in units of comoving
+!      Mpc/h, while the cell widths (dxini in the grafic headers) are
+!      in units of comoving Mpc
+!
 ! L Conaboy, April 2020
 
-subroutine gen_delc(path, omega_b)
+subroutine gen_delc(path, l, omega_b)
   ! --------------------
   !
   ! Subroutine for computing CDM overdensity (\delta_c) from CIC
@@ -22,6 +38,7 @@ subroutine gen_delc(path, omega_b)
   implicit none
   
   character (len=200), intent(in) :: path
+  integer, intent(in) :: l
   real, intent(in) :: omega_b
   
   integer :: hblk = 44
@@ -32,11 +49,14 @@ subroutine gen_delc(path, omega_b)
   real :: mp = 0.0
   real :: dxx, dyy, dzz, tx, ty, tz
   real :: omega_c, boxvol
-  real :: dxini, x1off, x2off, x3off, astart, omega_m, omega_l, h0
+  real :: dx0, dxini, x1off, x2off, x3off, astart, omega_m, omega_l, h0
   real :: rho_cr = 2.775e11  ! h^2 Msol/Mpc^3
+  real :: cur_max
   real, allocatable, dimension(:, :, :) :: dx, dy, dz, del_c
 
   write(6, *) 'Interpolating CDM overdensity'
+
+  dx0 = 0.5 ** real(l)
   
   write(6, *) '---- reading ic_poscx'
   ! Read the x data
@@ -125,9 +145,9 @@ subroutine gen_delc(path, omega_b)
            ! Displacement of the particle in the current parent cell
            ! at (i, j, k), converting from cell width of dxini to a
            ! cell width of one
-           dxx = dx(i, j, k) / dxini
-           dyy = dy(i, j, k) / dxini
-           dzz = dz(i, j, k) / dxini
+           dxx = dx(i, j, k) / dxini / (h0 / 100.) !* dx0 / dxini
+           dyy = dy(i, j, k) / dxini / (h0 / 100.) !* dx0 / dxini
+           dzz = dz(i, j, k) / dxini / (h0 / 100.) !* dx0 / dxini
 
            ! Convenience variables
            tx = 1.0 - dxx
@@ -172,7 +192,7 @@ subroutine gen_delc(path, omega_b)
   
   write(6, *) '---- writing deltac'
   call flush(6)
-  open(f, file=trim(path)//'ic_deltac', form='unformatted', status='new', access='stream')
+  open(f, file=trim(path)//'ic_deltac', form='unformatted', access='stream')
   rewind f
   ! Write the header
   write(f) hblk
@@ -217,9 +237,9 @@ subroutine gen_velcg(path, l)
   real :: mp = 1.0
   real :: dxx, dyy, dzz, tx, ty, tz
   real :: dx0, dxini, x1off, x2off, x3off, astart, omegam, omegal, omega_b, h0
+  real :: cur_max, cur_min
   real, parameter :: rhoc = 2.775e11  ! h^2 Msol/Mpc^3
   real, allocatable, dimension(:, :, :) :: dx, dy, dz, vc, vcg
-
 
   xyz = 'xyz'
 
@@ -261,6 +281,9 @@ subroutine gen_velcg(path, l)
   close(f+1)
   close(f+2)
 
+  cur_max = 0.0
+  cur_min = 0.0
+  
   ! Loop over dims and grid each velocity
   do ii = 1, 3
      allocate(vc(n1, n2, n3), vcg(n1, n2, n3))
@@ -290,14 +313,25 @@ subroutine gen_velcg(path, l)
               ! Displacement of the particle in the current parent
               ! cell at (i, j, k), converting from cell width of dxini
               ! to a cell width of one
-              dxx = dx(i, j, k) * dx0 / dxini
-              dyy = dy(i, j, k) * dx0 / dxini
-              dzz = dz(i, j, k) * dx0 / dxini
+              dxx = dx(i, j, k) / dxini / (h0 / 100.)
+              dyy = dy(i, j, k) / dxini / (h0 / 100.)
+              dzz = dz(i, j, k) / dxini / (h0 / 100.)
 
               ! Convenience variables
               tx = 1.0 - dxx
               ty = 1.0 - dyy
               tz = 1.0 - dzz
+
+              ! write(6, *), 'tx', tx
+              ! write(6, *), 'dx(i,j,k)', dx(i, j, k)
+              ! write(6, *), 'dxx', dxx
+
+              if (dxx .gt. cur_max) then
+                 cur_max = dxx
+              else if (dxx .lt. cur_min) then
+                 cur_min = dxx
+              end if
+              
 
               vcg(i, j, k) = vcg(i, j, k) + vc(i, j, k)*tx*ty*tz
               vcg(ip, j, k) = vcg(ip, j, k) + vc(ip, j, k)*dxx*ty*tz
@@ -312,6 +346,12 @@ subroutine gen_velcg(path, l)
         end do
      end do
 
+
+     write(6, *), '-------- max displacement (cell width = 1.0)', cur_max
+     write(6, *), '-------- min displacement (cell width = 1.0)', cur_min
+                 
+
+     
      ! Write out the gridded velocity
      write(6, *) '---- writing velcg'//xyz(ii:ii)
      open(f, file=trim(path)//'ic_velcg'//xyz(ii:ii), form='unformatted')

@@ -44,7 +44,7 @@ class Patch(object):
         self.field = field
 
 
-def work(path, level, patch_size, lin=False, verbose=True):
+def work(path, level, patch_size, lin=False, verbose=True, ret_vbc=False):
     """Computes a new set of biased grafic fields by convolving patches of
     the fields with bias factors computed using py_vbc.
 
@@ -53,6 +53,7 @@ def work(path, level, patch_size, lin=False, verbose=True):
     :param patch_size: (float) patch size in comoving Mpc
     :param lin: (bool) only bias deltac/deltab (True) or deltab/velb* (False)?
     :param verbose: (bool) controls printout
+    :param ret_vbc: (bool) testing feature, generate an IC file of the patched vbc
     :returns: 
     :rtype:
     """
@@ -184,10 +185,18 @@ def work(path, level, patch_size, lin=False, verbose=True):
                                           0 + pad:y_shape - pad,
                                           0 + pad:z_shape - pad]
 
+            # Store the patched v_bc that is used to calculate the bias
+            if ret_vbc:
+                vbc_patch = np.ones_like(deltab_biased) * vbc_utils.vbc_rms(vbc)
 
-            # Store
-            biased_patches = [Patch(patch, dx, deltab_biased, 'deltab'),
-                              Patch(patch, dx, deltac_biased, 'deltac')]
+                # Store
+                biased_patches = [Patch(patch, dx, deltab_biased, 'deltab'),
+                                  Patch(patch, dx, deltac_biased, 'deltac'),
+                                  Patch(patch, dx, vbc_patch, 'vbc_patch')]
+            else:
+                # Store
+                biased_patches = [Patch(patch, dx, deltab_biased, 'deltab'),
+                                  Patch(patch, dx, deltac_biased, 'deltac')]
 
             for patch in biased_patches:
                 with open(r"patches/level_{0:03d}/patch_{1}{2:03d}.p".format(level, patch.field, rank), "ab") as f:
@@ -198,6 +207,7 @@ def work(path, level, patch_size, lin=False, verbose=True):
             del deltac
             del deltac_biased
             del deltab_biased
+            if ret_vbc: del vbc_patch
 
             gc.collect()
 
@@ -265,11 +275,22 @@ def work(path, level, patch_size, lin=False, verbose=True):
                                         0 + pad:y_shape - pad,
                                         0 + pad:z_shape - pad]
 
-            # Store
-            biased_patches = [Patch(patch, dx, delta_biased, 'deltab'),
-                              Patch(patch, dx, velbx_biased, 'velbx'),
-                              Patch(patch, dx, velby_biased, 'velby'),
-                              Patch(patch, dx, velbz_biased, 'velbz')]
+            if ret_vbc:
+                vbc_patch = np.ones_like(deltab_biased) * vbc_utils.vbc_rms(vbc)
+
+                # Store
+                biased_patches = [Patch(patch, dx, delta_biased, 'deltab'),
+                                  Patch(patch, dx, velbx_biased, 'velbx'),
+                                  Patch(patch, dx, velby_biased, 'velby'),
+                                  Patch(patch, dx, velbz_biased, 'velbz'),
+                                  Patch(patch, dx, vbc_patch, 'vbc_patch')]
+            else:
+                # Store
+                biased_patches = [Patch(patch, dx, delta_biased, 'deltab'),
+                                  Patch(patch, dx, velbx_biased, 'velbx'),
+                                  Patch(patch, dx, velby_biased, 'velby'),
+                                  Patch(patch, dx, velbz_biased, 'velbz')]
+
 
             for patch in biased_patches:
                 with open(r"patches/level_{0:03d}/patch_{1}{2:03d}.p".format(level, patch.field, rank), "ab") as f:
@@ -281,6 +302,7 @@ def work(path, level, patch_size, lin=False, verbose=True):
             del velbx_biased
             del velby_biased
             del velbz_biased
+            if ret_vbc: del vbc_patch
 
             gc.collect()
 

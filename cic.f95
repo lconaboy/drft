@@ -45,6 +45,7 @@ subroutine gen_delc(path, l, omega_b)
   integer :: mblk
   integer :: i, j, k, n1, n2, n3
   integer :: ip, jp, kp
+  integer :: ii, jj, kk, iip, jjp, kkp
   integer, parameter :: f=50
   real :: mp = 0.0
   real :: dxx, dyy, dzz, tx, ty, tz
@@ -127,8 +128,10 @@ subroutine gen_delc(path, l, omega_b)
   end do
   close(f)
 
-  allocate(del_c(n1, n2, n3))
-  del_c = 0.0 
+  ! allocate(del_c(n1+1, n2+1, n3+1))
+  allocate(del_c(n1+2, n2+2, n3+2))
+  del_c = 0.0
+ 
   
   ! Interpolate the particles onto a grid
   write(6, *) '---- interpolating'
@@ -136,18 +139,31 @@ subroutine gen_delc(path, l, omega_b)
   do i=1,n1
      do j=1,n2
         do k=1,n3
-
            ! Allow for periodic boundary conditions
            ip = mod(i, n1) + 1
            jp = mod(j, n2) + 1
            kp = mod(k, n3) + 1
 
+           ii = i + 1
+           jj = j + 1
+           kk = k + 1
+
+           iip = ii + 1
+           jjp = jj + 1
+           kkp = kk + 1
+           
+           ! Use non-periodic boundary conditions, we have allocated
+           ! del_c to be one bigger in each dimension
+           ! ip = i + 1
+           ! jp = j + 1
+           ! kp = k + 1
+           
            ! Displacement of the particle in the current parent cell
            ! at (i, j, k), converting from cell width of dxini to a
            ! cell width of one
-           dxx = dx(i, j, k) / dxini / (h0 / 100.) !* dx0 / dxini
-           dyy = dy(i, j, k) / dxini / (h0 / 100.) !* dx0 / dxini
-           dzz = dz(i, j, k) / dxini / (h0 / 100.) !* dx0 / dxini
+           dxx = dx(i, j, k) / dxini! / (h0 / 100.) !* dx0 / dxini
+           dyy = dy(i, j, k) / dxini! / (h0 / 100.) !* dx0 / dxini
+           dzz = dz(i, j, k) / dxini! / (h0 / 100.) !* dx0 / dxini
 
            ! Convenience variables
            tx = 1.0 - dxx
@@ -155,15 +171,24 @@ subroutine gen_delc(path, l, omega_b)
            tz = 1.0 - dzz
 
            ! Interpolate using cloud-in-cell
-           del_c(i, j, k) = del_c(i, j, k) + mp*tx*ty*tz
-           del_c(ip, j, k) = del_c(ip, j, k) + mp*dxx*ty*tz
-           del_c(i, jp, k) = del_c(i, jp, k) + mp*tx*dyy*tz
-           del_c(i, j, kp) = del_c(i, j, kp) + mp*tx*ty*dzz
-           del_c(ip, jp, k) = del_c(ip, jp, k) + mp*dxx*dyy*tz
-           del_c(ip, j, kp) = del_c(ip, j, kp) + mp*dxx*ty*dzz
-           del_c(i, jp, kp) = del_c(i, jp, kp) + mp*tx*dyy*dzz
-           del_c(ip, jp, kp) = del_c(ip, jp, kp) + mp*dxx*dyy*dzz
-           
+           ! del_c(i, j, k) = del_c(i, j, k) + mp*tx*ty*tz
+           ! del_c(ip, j, k) = del_c(ip, j, k) + mp*dxx*ty*tz
+           ! del_c(i, jp, k) = del_c(i, jp, k) + mp*tx*dyy*tz
+           ! del_c(i, j, kp) = del_c(i, j, kp) + mp*tx*ty*dzz
+           ! del_c(ip, jp, k) = del_c(ip, jp, k) + mp*dxx*dyy*tz
+           ! del_c(ip, j, kp) = del_c(ip, j, kp) + mp*dxx*ty*dzz
+           ! del_c(i, jp, kp) = del_c(i, jp, kp) + mp*tx*dyy*dzz
+           ! del_c(ip, jp, kp) = del_c(ip, jp, kp) + mp*dxx*dyy*dzz
+
+           del_c(ii, jj, kk) = del_c(ii, jj, kk) + mp*tx*ty*tz
+           del_c(iip, jj, kk) = del_c(iip, jj, kk) + mp*dxx*ty*tz
+           del_c(ii, jjp, kk) = del_c(ii, jjp, kk) + mp*tx*dyy*tz
+           del_c(ii, jj, kkp) = del_c(ii, jj, kkp) + mp*tx*ty*dzz
+           del_c(iip, jjp, kk) = del_c(iip, jjp, kk) + mp*dxx*dyy*tz
+           del_c(iip, jj, kkp) = del_c(iip, jj, kkp) + mp*dxx*ty*dzz
+           del_c(ii, jjp, kkp) = del_c(ii, jjp, kkp) + mp*tx*dyy*dzz
+           del_c(iip, jjp, kkp) = del_c(iip, jjp, kkp) + mp*dxx*dyy*dzz
+
         end do
      end do
   end do
@@ -176,6 +201,15 @@ subroutine gen_delc(path, l, omega_b)
 
   ! Convert to overdensity
   del_c = del_c/(rho_cr * omega_c) - 1.
+
+  ! Because of how we treated the periodic boundary conds...
+  del_c = del_c(2:n1+1, 2:n2+1, 2:n3+1)
+  del_c(:, :, 1) = 0.0
+  del_c(:, 1, :) = 0.0
+  del_c(1, :, :) = 0.0
+  del_c(n1, :, :) = 0.0
+  del_c(:, n2, :) = 0.0
+  del_c(:, :, n3) = 0.0
   
   deallocate(dx)
   deallocate(dy)
@@ -192,17 +226,17 @@ subroutine gen_delc(path, l, omega_b)
   
   write(6, *) '---- writing deltac'
   call flush(6)
-  open(f, file=trim(path)//'ic_deltac', form='unformatted', access='stream')
+  open(f, file=trim(path)//'ic_deltac', form='unformatted') !, access='stream')
   rewind f
   ! Write the header
-  write(f) hblk
+  ! write(f) hblk
   write(f) n1, n2, n3, dxini, x1off, x2off, x3off, astart, omega_m, omega_l, h0
-  write(f) hblk
+  ! write(f) hblk
   ! Write the main block
   do k=1,n3
-     write(f) mblk
+     ! write(f) mblk
      write(f) ((del_c(i, j, k), i=1,n1), j=1,n2)
-     write(f) mblk
+     ! write(f) mblk
   end do
   close(f)
 
@@ -232,7 +266,8 @@ subroutine gen_velcg(path, l)
   integer :: hblk = 44
   integer :: mblk
   integer :: i, j, k, n1, n2, n3
-  integer :: ip, jp, kp
+  integer :: ip, jp, kp, ll
+  integer :: ii, jj, kk, iip, jjp, kkp
   integer, parameter :: f=50
   real :: mp = 1.0
   real :: dxx, dyy, dzz, tx, ty, tz
@@ -285,12 +320,12 @@ subroutine gen_velcg(path, l)
   cur_min = 0.0
   
   ! Loop over dims and grid each velocity
-  do ii = 1, 3
-     allocate(vc(n1, n2, n3), vcg(n1, n2, n3))
+  do ll = 1, 3
+     allocate(vc(n1, n2, n3), vcg(n1+2, n2+2, n3+2))
 
      ! Read in the the CDM velocity
-     write(6, *) '---- reading velc'//xyz(ii:ii)
-     open(f, file=trim(path)//'ic_velc'//xyz(ii:ii), form='unformatted')
+     write(6, *) '---- reading velc'//xyz(ll:ll)
+     open(f, file=trim(path)//'ic_velc'//xyz(ll:ll), form='unformatted')
      read(f)
      do k = 1, n3
         read(f) ((vc(i, j, k), i=1,n1), j=1,n2)
@@ -299,6 +334,7 @@ subroutine gen_velcg(path, l)
 
      ! Now interpolate
      vcg = 0.0
+     
      write(6, *) '---- interpolating'
      call flush(6)
      do i=1,n1
@@ -310,14 +346,32 @@ subroutine gen_velcg(path, l)
               jp = mod(j, n2) + 1
               kp = mod(k, n3) + 1
 
+              ii = i + 1
+              jj = j + 1
+              kk = k + 1
+
+              iip = ii + 1
+              jjp = jj + 1
+              kkp = kk + 1
+           
+              ! Interpolate using cloud-in-cell
+              ! del_c(i, j, k) = del_c(i, j, k) + mp*tx*ty*tz
+              ! del_c(ip, j, k) = del_c(ip, j, k) + mp*dxx*ty*tz
+              ! del_c(i, jp, k) = del_c(i, jp, k) + mp*tx*dyy*tz
+              ! del_c(i, j, kp) = del_c(i, j, kp) + mp*tx*ty*dzz
+              ! del_c(ip, jp, k) = del_c(ip, jp, k) + mp*dxx*dyy*tz
+              ! del_c(ip, j, kp) = del_c(ip, j, kp) + mp*dxx*ty*dzz
+              ! del_c(i, jp, kp) = del_c(i, jp, kp) + mp*tx*dyy*dzz
+              ! del_c(ip, jp, kp) = del_c(ip, jp, kp) + mp*dxx*dyy*dzz
+
               ! Displacement of the particle in the current parent
               ! cell at (i, j, k), converting from cell width of dxini
               ! to a cell width of one
-              dxx = dx(i, j, k) / dxini / (h0 / 100.)
-              dyy = dy(i, j, k) / dxini / (h0 / 100.)
-              dzz = dz(i, j, k) / dxini / (h0 / 100.)
+              dxx = dx(i, j, k) / dxini! / (h0 / 100.)
+              dyy = dy(i, j, k) / dxini! / (h0 / 100.)
+              dzz = dz(i, j, k) / dxini! / (h0 / 100.)
 
-              ! Convenience variables
+              ! Conenience variables
               tx = 1.0 - dxx
               ty = 1.0 - dyy
               tz = 1.0 - dzz
@@ -331,16 +385,26 @@ subroutine gen_velcg(path, l)
               else if (dxx .lt. cur_min) then
                  cur_min = dxx
               end if
+
+
+              vcg(ii, jj, kk) = vcg(ii, jj, kk) + vc(i, j, k)*tx*ty*tz
+              vcg(iip, jj, kk) = vcg(iip, jj, kk) + vc(ip, j, k)*dxx*ty*tz
+              vcg(ii, jjp, kk) = vcg(ii, jjp, kk) + vc(i, jp, k)*tx*dyy*tz
+              vcg(ii, jj, kkp) = vcg(ii, jj, kkp) + vc(i, j, kp)*tx*ty*dzz
+              vcg(iip, jjp, kk) = vcg(iip, jjp, kk) + vc(ip, jp, k)*dxx*dyy*tz
+              vcg(iip, jj, kkp) = vcg(iip, jj, kkp) + vc(ip, j, kp)*dxx*ty*dzz
+              vcg(ii, jjp, kkp) = vcg(ii, jjp, kkp) + vc(i, jp, kp)*tx*dyy*dzz
+              vcg(iip, jjp, kkp) = vcg(iip, jjp, kkp) + vc(ip, jp, kp)*dxx*dyy*dzz
               
 
-              vcg(i, j, k) = vcg(i, j, k) + vc(i, j, k)*tx*ty*tz
-              vcg(ip, j, k) = vcg(ip, j, k) + vc(ip, j, k)*dxx*ty*tz
-              vcg(i, jp, k) = vcg(i, jp, k) + vc(i, jp, k)*tx*dyy*tz
-              vcg(i, j, kp) = vcg(i, j, kp) + vc(i, j, kp)*tx*ty*dzz
-              vcg(ip, jp, k) = vcg(ip, jp, k) + vc(ip, jp, k)*dxx*dyy*tz
-              vcg(ip, j, kp) = vcg(ip, j, kp) + vc(ip, j, kp)*dxx*ty*dzz
-              vcg(i, jp, kp) = vcg(i, jp, kp) + vc(i, jp, kp)*tx*dyy*dzz
-              vcg(ip, jp, kp) = vcg(ip, jp, kp) + vc(ip, jp, kp)*dxx*dyy*dzz
+              ! vcg(i, j, k) = vcg(i, j, k) + vc(i, j, k)*tx*ty*tz
+              ! vcg(ip, j, k) = vcg(ip, j, k) + vc(ip, j, k)*dxx*ty*tz
+              ! vcg(i, jp, k) = vcg(i, jp, k) + vc(i, jp, k)*tx*dyy*tz
+              ! vcg(i, j, kp) = vcg(i, j, kp) + vc(i, j, kp)*tx*ty*dzz
+              ! vcg(ip, jp, k) = vcg(ip, jp, k) + vc(ip, jp, k)*dxx*dyy*tz
+              ! vcg(ip, j, kp) = vcg(ip, j, kp) + vc(ip, j, kp)*dxx*ty*dzz
+              ! vcg(i, jp, kp) = vcg(i, jp, kp) + vc(i, jp, kp)*tx*dyy*dzz
+              ! vcg(ip, jp, kp) = vcg(ip, jp, kp) + vc(ip, jp, kp)*dxx*dyy*dzz
 
            end do
         end do
@@ -350,11 +414,22 @@ subroutine gen_velcg(path, l)
      write(6, *), '-------- max displacement (cell width = 1.0)', cur_max
      write(6, *), '-------- min displacement (cell width = 1.0)', cur_min
                  
+     ! Because of how we treated the periodic boundary conditions, we
+     ! can either set the edge cells to zero, or use the ungridded
+     ! velocity. Both are incorrect, but I think using the ungridded
+     ! value is less wrong than setting to zero.
+     vcg = vcg(2:n1+1, 2:n2+1, 2:n3+1)
+     vcg(:, :, 1) = vc(:, :, 1)
+     vcg(:, 1, :) = vc(:, 1, :)
+     vcg(1, :, :) = vc(1, :, :)
+     vcg(n1, :, :) = vc(n1, :, :)
+     vcg(:, n2, :) = vc(:, n2, :)
+     vcg(:, :, n3) = vc(:, :, n3)
 
      
      ! Write out the gridded velocity
-     write(6, *) '---- writing velcg'//xyz(ii:ii)
-     open(f, file=trim(path)//'ic_velcg'//xyz(ii:ii), form='unformatted')
+     write(6, *) '---- writing velcg'//xyz(ll:ll)
+     open(f, file=trim(path)//'ic_velcg'//xyz(ll:ll), form='unformatted')
      write(f) n1, n2, n3, dxini, x1off, x2off, x3off, astart, omega_m, omega_l, h0
      do k = 1, n3
         write(f) ((vcg(i, j, k), i=1,n1), j=1,n2)
@@ -391,9 +466,11 @@ subroutine gen_vbc(path)
   integer, parameter :: f=50
   real :: dxini, x1off, x2off, x3off, astart, omegam, omegal, omega_b, h0
   real, allocatable, dimension(:, :, :) :: vbc, vb, vcg
+  logical :: per
 
   xyz = 'xyz'
-  
+  per = .false.
+
   write(6, *) 'Calculating v_bc field'
 
   ! Read the x data
@@ -446,13 +523,25 @@ subroutine gen_vbc(path)
   end do
   
   ! Write the vbc field
-  ! vbc = sqrt(vbc)
+  vbc = sqrt(vbc)
+
+  ! Because of how we handled non-periodic boundaries in gen_velcg, we
+  ! don't need to worry about the edge cases here.
+
+  ! if (.not. per) then
+  !    vbc(1, :, :) = 0.0
+  !    vbc(:, 1, :) = 0.0
+  !    vbc(:, :, 1) = 0.0
+  !    vbc(:, :, n3) = 0.0
+  !    vbc(:, n2, :) = 0.0
+  !    vbc(n1, :, :) = 0.0
+  ! end if
   
   write(6, *) '---- writing vbc'
   open(f, file=trim(path)//'ic_vbc', form='unformatted')
   write(f) n1, n2, n3, dxini, x1off, x2off, x3off, astart, omega_m, omega_l, h0
   do k = 1, n3
-     write(f) ((sqrt(vbc(i, j, k)), i=1,n1), j=1,n2)
+     write(f) ((vbc(i, j, k), i=1,n1), j=1,n2)
   end do
   close(f)
 

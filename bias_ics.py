@@ -276,7 +276,7 @@ def work(path, level, patch_size, lin=False, verbose=True, ret_vbc=False):
                                         0 + pad:z_shape - pad]
 
             if ret_vbc:
-                vbc_patch = np.ones_like(deltab_biased) * vbc_utils.vbc_rms(vbc)
+                vbc_patch = np.ones_like(delta_biased) * vbc_utils.vbc_rms(vbc)
 
                 # Store
                 biased_patches = [Patch(patch, dx, delta_biased, 'deltab'),

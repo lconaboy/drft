@@ -443,6 +443,10 @@ if __name__ == '__main__':
     else:
         print('Biasing deltab and velb fields', flush=True)
 
+    ret_vbc = True
+    if ret_vbc:
+        print('TESTING: writing vbc_patch field', flush=True)
+
     # Run the main loop
     try:    
         if mode == 'work':
@@ -450,7 +454,7 @@ if __name__ == '__main__':
             # fields. Not terribly efficient, as the other processes
             # are waiting for rank 0 to write, but the writing is
             # quite quick anyway.
-            work(path, level, patch_size, lin, verbose)
+            work(path, level, patch_size, lin, verbose, ret_vbc)
             write(path, level, lin, verbose)
         elif mode == 'write':
             # In 'write' mode, we just write

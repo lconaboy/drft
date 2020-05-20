@@ -13,9 +13,16 @@
 !
 ! Notes
 !
-!    - displacements in grafic ic_posc files are in units of comoving
-!      Mpc/h, while the cell widths (dxini in the grafic headers) are
-!      in units of comoving Mpc
+!    - Displacements in grafic ic_posc files are taken to be in units
+!      of comoving Mpc/h, while the cell widths (dxini in the grafic
+!      headers) are in units of comoving Mpc. This is discrepant with
+!      the original definition of the grafic2 file (the README
+!      available from Edmund Bertschinger's page), which defines
+!      displacements in comoving Mpc. After working through the units
+!      in pm/init_part.f90 (and the comments therein) as well as
+!      looking at other sources (pynbody's grafic reading routines,
+!      for instance), it looks as though ramses expects the ic_posc
+!      files to be in comoving Mpc/h, so that's what we'll use here.
 !
 !    - There is some ambiguity in how to handle the edges for the
 !    - non-periodic case, which become sharp due to there being no
@@ -68,14 +75,16 @@ subroutine gen_delc(path, omega_b, per)
   integer :: i, j, k
   integer :: ip, jp, kp, ic, jc, kc, n1, n2, n3
   integer :: icp, jcp, kcp
-  integer :: ii, jj, kk, iip, jjp, kkp, cut, pad, cnt
+  integer :: ii, jj, kk, cut, pad, cnt
   integer, parameter :: f=50
-  real :: mp = 0.0
-  double precision :: dxx, dyy, dzz, tx, ty, tz, dxx1, dyy1, dzz1
+  double precision :: mp, dxx, dyy, dzz, tx, ty, tz, dxx1, dyy1, dzz1
+  !real :: mp, dxx, dyy, dzz, tx, ty, tz, dxx1, dyy1, dzz1
   real :: omega_c, boxvol
   real :: dxini, x1off, x2off, x3off, astart, omega_m, omega_l, h0
-  real :: rho_cr = 2.775e11  ! h^2 Msol/Mpc^3
-  real :: cur_max, cur_min
+  double precision :: rho_cr = 2.775d11  ! h^2 Msol/Mpc^3
+  ! real :: rho_cr = 2.775e11  ! h^2 Msol/Mpc^3
+  double precision :: cur_max, cur_min, dh, ddxini
+  ! real :: cur_max, cur_min, old_maxval
   real, allocatable, dimension(:, :, :) :: dx, dy, dz, del_c
 
   write(6, *) 'Interpolating CDM overdensity'
@@ -100,13 +109,17 @@ subroutine gen_delc(path, omega_b, per)
   ! close(f+1)
   write(6, *) '-------- omega_b', omega_b
 
+  ! Define double convenience variables
+  dh = dble(h0) / 100.d0
+  ddxini = dble(dxini)
+  
   ! Now calculate the particle mass
-  rho_cr = rho_cr * (h0/100.)**2
+  rho_cr = rho_cr * dh**2
   omega_c = omega_m - omega_b
   boxvol = real(n1*n2*n3) * (dxini**3)
 
   ! Calculate mp
-  mp = (omega_c * rho_cr * boxvol) / real(n1*n2*n3)  ! M_sol
+  mp = (dble(omega_c) * rho_cr * dble(boxvol)) / dble(n1*n2*n3)  ! M_sol
 
 
   write(6, *) '---- calculated parameters'
@@ -149,7 +162,7 @@ subroutine gen_delc(path, omega_b, per)
      read(f) ((dz(i, j, k), i=1,n1), j=1,n2)
   end do
   close(f)
-
+  
   ! Interpolate the particles onto a grid
   write(6, *) '---- interpolating'
   
@@ -158,7 +171,7 @@ subroutine gen_delc(path, omega_b, per)
      call flush(6)
           
      allocate(del_c(n1, n2, n3))
-          del_c = 0.0
+     del_c = 0.0
  
      cur_min = 0.0
      cur_max = 0.0
@@ -167,54 +180,48 @@ subroutine gen_delc(path, omega_b, per)
      do ip = 1, n1
         do jp = 1, n2
            do kp = 1, n3
-              ! periodic CIC
-              ! xp - particle indices
-              ! xc - cell indices
-              ! xcp - cell indices + 1
+              ! Convert the displcaments from comoving Mpc/h to units
+              ! of cell width: dxx=1.0 means the particle is offset by
+              ! 1 cell from the current cell centre
+              dxx = dble(dx(ip, jp, kp)) / ddxini / dh !* dx0 / dxini
+              dyy = dble(dy(ip, jp, kp)) / ddxini / dh !* dx0 / dxini
+              dzz = dble(dz(ip, jp, kp)) / ddxini / dh !* dx0 / dxini
 
-              dxx = dx(ip, jp, kp) / dxini! / (h0 / 100.) !* dx0 / dxini
-              dyy = dy(ip, jp, kp) / dxini! / (h0 / 100.) !* dx0 / dxini
-              dzz = dz(ip, jp, kp) / dxini! / (h0 / 100.) !* dx0 / dxini
-
-              ! We can use d** to figure out which cell the particle is
-              ! in, since we've normalised to cell widths. Might have
-              ! gone out of the right hand side, so use mod
-              ic = int(dble(ip) + dble(dxx) + 0.5d0)
-              jc = int(dble(jp) + dble(dyy) + 0.5d0)
-              kc = int(dble(kp) + dble(dzz) + 0.5d0)
+              ! We can use displacements to figure out which cell the
+              ! particle is in, since we've normalised to cell widths
+              ic = int(dble(ip) + dxx + 0.5d0)
+              jc = int(dble(jp) + dyy + 0.5d0)
+              kc = int(dble(kp) + dzz + 0.5d0)
 
               ! Calcaulate the offset from the new cell centre
-              dxx1 = dble(dxx) - (dble(ic) - dble(ip) - 0.5d0)  
-              dyy1 = dble(dyy) - (dble(jc) - dble(jp) - 0.5d0)
-              dzz1 = dble(dzz) - (dble(kc) - dble(kp) - 0.5d0)
+              dxx1 = dxx - (dble(ic) - dble(ip) - 0.5d0)  
+              dyy1 = dyy - (dble(jc) - dble(jp) - 0.5d0)
+              dzz1 = dzz - (dble(kc) - dble(kp) - 0.5d0)
 
+              ! Check if we've wrapped the ic value around
+              if (ic .gt. n1) ic = ic - n1
+              if (ic .lt. 1) ic = ic + n1
+              if (jc .gt. n2) jc = jc - n2
+              if (jc .lt. 1) jc = jc + n2
+              if (kc .gt. n3) kc = kc - n3
+              if (kc .lt. 1) kc = kc + n3
+              
+              ! Now calculate the +1th cell, and check if we've
+              ! wrapped around
               icp = ic + 1
               jcp = jc + 1
               kcp = kc + 1
+              if (icp .gt. n1) icp = icp - n1
+              if (icp .lt. 1) icp = icp + n1
+              if (jcp .gt. n2) jcp = jcp - n2
+              if (jcp .lt. 1) jcp = jcp + n2
+              if (kcp .gt. n3) kcp = kcp - n3
+              if (kcp .lt. 1) kcp = kcp + n3
 
-              if (ic .gt. n1) then
-                 ic = ic - n1
-                 icp = ic + 1
-              else if (icp .gt. n1) then
-                 icp = icp - n1
-              end if
-
-              if (jc .gt. n2) then
-                 jc = jc - n2
-                 jcp = jc + 1
-              else if (jcp .gt. n2) then
-                 jcp = jcp - n2
-              end if
-
-              if (kc .gt. n3) then
-                 kc = mod(kc, n3) + 1
-                 kcp = kc + 1
-              else if (kcp .gt. n3) then
-                 kcp = kcp - n3
-              end if
-           
               ! Check how large the offset is, this gives us an idea
-              ! of how much of the edge to remove in the ICs
+              ! of how much of the edge to remove in the ICs, for the
+              ! non-periodic case. Just used for information in the
+              ! periodic case.
               if (dxx .lt. cur_min) then
                  cur_min = dxx
               end if
@@ -241,14 +248,14 @@ subroutine gen_delc(path, omega_b, per)
               tz = 1.0 - dzz1
 
               ! Interpolate using cloud-in-cell
-              del_c(ic, jc, kc) = del_c(ic, jc, kc) + mp*tx*ty*tz
-              del_c(icp, jc, kc) = del_c(icp, jc, kc) + mp*dxx1*ty*tz
-              del_c(ic, jcp, kc) = del_c(ic, jcp, kc) + mp*tx*dyy1*tz
-              del_c(ic, jc, kcp) = del_c(ic, jc, kcp) + mp*tx*ty*dzz1
-              del_c(icp, jcp, kc) = del_c(icp, jcp, kc) + mp*dxx1*dyy1*tz
-              del_c(icp, jc, kcp) = del_c(icp, jc, kcp) + mp*dxx1*ty*dzz1
-              del_c(ic, jcp, kcp) = del_c(ic, jcp, kcp) + mp*tx*dyy1*dzz1
-              del_c(icp, jcp, kcp) = del_c(icp, jcp, kcp) + mp*dxx1*dyy1*dzz1
+              del_c(ic, jc, kc) = del_c(ic, jc, kc) + real(mp*tx*ty*tz)
+              del_c(icp, jc, kc) = del_c(icp, jc, kc) + real(mp*dxx1*ty*tz)
+              del_c(ic, jcp, kc) = del_c(ic, jcp, kc) + real(mp*tx*dyy1*tz)
+              del_c(ic, jc, kcp) = del_c(ic, jc, kcp) + real(mp*tx*ty*dzz1)
+              del_c(icp, jcp, kc) = del_c(icp, jcp, kc) + real(mp*dxx1*dyy1*tz)
+              del_c(icp, jc, kcp) = del_c(icp, jc, kcp) + real(mp*dxx1*ty*dzz1)
+              del_c(ic, jcp, kcp) = del_c(ic, jcp, kcp) + real(mp*tx*dyy1*dzz1)
+              del_c(icp, jcp, kcp) = del_c(icp, jcp, kcp) + real(mp*dxx1*dyy1*dzz1)
            end do
         end do
      end do
@@ -287,26 +294,30 @@ subroutine gen_delc(path, omega_b, per)
      do ip = 1, n1
         do jp = 1, n2
            do kp = 1, n3
-              ! non - periodic CIC, we build up the 
+              ! non-periodic CIC, we build up the 
               ! xp - particle indices
               ! xc - cell indices
               ! xcp - cell indices + 1
 
-              dxx = dx(ip, jp, kp) / dxini! / (h0 / 100.) !* dx0 / dxini
-              dyy = dy(ip, jp, kp) / dxini! / (h0 / 100.) !* dx0 / dxini
-              dzz = dz(ip, jp, kp) / dxini! / (h0 / 100.) !* dx0 / dxini
+              ! Convert the displcaments from comoving Mpc/h to units
+              ! of cell width: dxx=1.0 means the particle is offset by
+              ! 1 cell from the current cell centre
+              dxx = dble(dx(ip, jp, kp)) / ddxini / dh !* dx0 / dxini
+              dyy = dble(dy(ip, jp, kp)) / ddxini / dh !* dx0 / dxini
+              dzz = dble(dz(ip, jp, kp)) / ddxini / dh !* dx0 / dxini
+
 
               ! We can use d** to figure out which cell the particle is
               ! in, since we've normalised to cell widths. Might have
               ! gone out of the right hand side, so use mod
-              ic = int(dble(ip) + dble(dxx) + 0.5d0)
-              jc = int(dble(jp) + dble(dyy) + 0.5d0)
-              kc = int(dble(kp) + dble(dzz) + 0.5d0)
+              ic = int(dble(ip) + dxx + 0.5d0)
+              jc = int(dble(jp) + dyy + 0.5d0)
+              kc = int(dble(kp) + dzz + 0.5d0)
            
               ! Calcaulate the offset from the new cell centre
-              dxx1 = dble(dxx) - (dble(ic) - dble(ip) - 0.5d0)  
-              dyy1 = dble(dyy) - (dble(jc) - dble(jp) - 0.5d0)
-              dzz1 = dble(dzz) - (dble(kc) - dble(kp) - 0.5d0)
+              dxx1 = dxx - (dble(ic) - dble(ip) - 0.5d0)  
+              dyy1 = dyy - (dble(jc) - dble(jp) - 0.5d0)
+              dzz1 = dzz - (dble(kc) - dble(kp) - 0.5d0)
 
               ! Check how large the offset is, this gives us an idea
               ! of how much of the edge to remove in the ICs
@@ -329,7 +340,7 @@ subroutine gen_delc(path, omega_b, per)
               if (dzz .gt. cur_max) then
                  cur_max = dzz
               end if
-              
+
               ! Calculate the values for +1 before shifting
               icp = ic + 1
               jcp = jc + 1
@@ -346,21 +357,16 @@ subroutine gen_delc(path, omega_b, per)
               if (jc .gt. n2) jc = n2 + 1! jc - n2 - 1
               if (kc .gt. n3) kc = n3 + 1! kc - n3 - 1
               
-              ! Now we can adjust the +1 values, starting with the lhs
+              ! Now we can adjust the +1 values, starting with the
+              ! lhs, < 1 corresponds to ic < 0
               if (icp .lt. 1) icp = 0 ! n1 + icp
               if (jcp .lt. 1) jcp = 0 ! n2 + jcp
               if (kcp .lt. 1) kcp = 0 ! n3 + kcp
-              ! and now the rhs
+              ! and now the rhs, again icp > n1+1 corresponds to ic >
+              ! n1
               if (icp .gt. n1+1) icp = n1 + 2 ! icp - n1 - 1
               if (jcp .gt. n2+1) jcp = n2 + 2 ! jcp - n2 - 1
               if (kcp .gt. n3+1) kcp = n3 + 2 ! kcp - n3 - 1
-           
-              if ((dxx1 .gt. 1.0) .or. (dxx1 .lt. 0.0)) then
-                 write(6, *) 'dxx', dxx
-                 write(6, *) 'dxx1', dxx1
-                 write(6, *) 'ic', ic
-                 write(6, *) 'ip', ip
-              end if
 
               ! Convenience variables
               tx = 1.0 - dxx1
@@ -368,14 +374,14 @@ subroutine gen_delc(path, omega_b, per)
               tz = 1.0 - dzz1
 
               ! Interpolate using cloud-in-cell
-              del_c(ic, jc, kc) = del_c(ic, jc, kc) + mp*tx*ty*tz
-              del_c(icp, jc, kc) = del_c(icp, jc, kc) + mp*dxx1*ty*tz
-              del_c(ic, jcp, kc) = del_c(ic, jcp, kc) + mp*tx*dyy1*tz
-              del_c(ic, jc, kcp) = del_c(ic, jc, kcp) + mp*tx*ty*dzz1
-              del_c(icp, jcp, kc) = del_c(icp, jcp, kc) + mp*dxx1*dyy1*tz
-              del_c(icp, jc, kcp) = del_c(icp, jc, kcp) + mp*dxx1*ty*dzz1
-              del_c(ic, jcp, kcp) = del_c(ic, jcp, kcp) + mp*tx*dyy1*dzz1
-              del_c(icp, jcp, kcp) = del_c(icp, jcp, kcp) + mp*dxx1*dyy1*dzz1
+              del_c(ic, jc, kc) = del_c(ic, jc, kc) + real(mp*tx*ty*tz)
+              del_c(icp, jc, kc) = del_c(icp, jc, kc) + real(mp*dxx1*ty*tz)
+              del_c(ic, jcp, kc) = del_c(ic, jcp, kc) + real(mp*tx*dyy1*tz)
+              del_c(ic, jc, kcp) = del_c(ic, jc, kcp) + real(mp*tx*ty*dzz1)
+              del_c(icp, jcp, kc) = del_c(icp, jcp, kc) + real(mp*dxx1*dyy1*tz)
+              del_c(icp, jc, kcp) = del_c(icp, jc, kcp) + real(mp*dxx1*ty*dzz1)
+              del_c(ic, jcp, kcp) = del_c(ic, jcp, kcp) + real(mp*tx*dyy1*dzz1)
+              del_c(icp, jcp, kcp) = del_c(icp, jcp, kcp) + real(mp*dxx1*dyy1*dzz1)
            end do
         end do
      end do
@@ -384,7 +390,7 @@ subroutine gen_delc(path, omega_b, per)
      call flush(6)
 
      ! Remove edges
-     cut = ceiling(max(cur_max, abs(cur_min))) + 1
+     cut = int(ceiling(max(cur_max, abs(cur_min)))) + 1
      ! del_c = del_c(1:n1, 1:n2, 1:n3)
 
      write(6, *) '-------- min(del_c) ', minval(del_c)
@@ -422,8 +428,7 @@ subroutine gen_delc(path, omega_b, per)
               kk = k
 
               del_c(ii, jj, kk) =  0.5 * (del_c(ii, jj, kk) + del_c(ii-1, j, k))
-              cnt = cnt + 1
-                            
+              cnt = cnt + 1                          
            end do
         end do
      end do
@@ -534,7 +539,8 @@ subroutine gen_delc(path, omega_b, per)
   call flush(6)
   open(f, file=trim(path)//'ic_deltac', form='unformatted') !, access='stream')
   rewind f
-  ! Write the header
+  ! Write the header, don't need to do this if we don't use
+  ! access='stream'
   ! write(f) hblk
   write(f) n1, n2, n3, dxini, x1off, x2off, x3off, astart, omega_m, omega_l, h0
   ! write(f) hblk
@@ -565,6 +571,8 @@ subroutine gen_velcg(path, per)
   ! be written back out to
   !
   ! --------------------
+
+  implicit none
   
   character (len=200), intent(in) :: path
   logical, intent(in) :: per
@@ -572,15 +580,14 @@ subroutine gen_velcg(path, per)
   character (len=3) :: xyz
   integer :: hblk = 44
   integer :: mblk
-  integer :: i, j, k, n1, n2, n3
-  integer :: ip, jp, kp, ll
-  integer :: ii, jj, kk, iip, jjp, kkp
+  integer :: ic, jc, kc, icp, jcp, kcp, n1, n2, n3
+  integer :: i, j, k, ip, jp, kp, ll
+  integer :: ii, jj, kk, cut, pad, cnt
   integer, parameter :: f=50
-  real :: mp = 1.0
   double precision :: dxx, dyy, dzz, tx, ty, tz, dxx1, dyy1, dzz1
-  real :: dx0, dxini, x1off, x2off, x3off, astart, omegam, omegal, omega_b, h0
-  real :: cur_max, cur_min
-  real, parameter :: rhoc = 2.775e11  ! h^2 Msol/Mpc^3
+  real :: dxini, x1off, x2off, x3off, astart, omega_m, omega_l, omega_b, h0
+  double precision :: cur_max, cur_min, ddxini, dh
+  double precision, parameter :: rhoc = 2.775d11  ! h^2 Msol/Mpc^3
   real, allocatable, dimension(:, :, :) :: dx, dy, dz, vc, vcg
 
   xyz = 'xyz'
@@ -592,13 +599,17 @@ subroutine gen_velcg(path, per)
   open(f, file=trim(path)//'ic_poscx', form='unformatted')
   rewind f
   ! Read header and print out cosmological parameters, for quick checking
-  read(f) n1, n2, n3, dxini, x1off, x2off, x3off, astart, omegam, omegal, h0
+  read(f) n1, n2, n3, dxini, x1off, x2off, x3off, astart, omega_m, omega_l, h0
   write(6, *) '-------- n1, n2, n3', n1, n2, n3
   write(6, *) '-------- astart', astart, ' zstart', 1.0/astart - 1.0
-  write(6, *) '-------- omega_m', omegam
-  write(6, *) '-------- omega_l', omegal
+  write(6, *) '-------- omega_m', omega_m
+  write(6, *) '-------- omega_l', omega_l
   write(6, *) '-------- H_0', h0
   call flush(6)
+
+  ! Define double convenience variables
+  dh = dble(h0) / 100.d0
+  ddxini = dble(dxini)
 
   ! Load the offsets
   allocate(dx(n1, n2, n3), dy(n1, n2, n3), dz(n1, n2, n3))
@@ -659,46 +670,44 @@ subroutine gen_velcg(path, per)
                  ! xc - cell indices
                  ! xcp - cell indices + 1
 
-                 dxx = dx(ip, jp, kp) / dxini! / (h0 / 100.) !* dx0 / dxini
-                 dyy = dy(ip, jp, kp) / dxini! / (h0 / 100.) !* dx0 / dxini
-                 dzz = dz(ip, jp, kp) / dxini! / (h0 / 100.) !* dx0 / dxini
+                 ! Convert the displcaments from comoving Mpc/h to
+                 ! units of cell width: dxx=1.0 means the particle is
+                 ! offset by 1 cell from the current cell centre
+                 dxx = dble(dx(ip, jp, kp)) / ddxini / dh !* dx0 / dxini
+                 dyy = dble(dy(ip, jp, kp)) / ddxini / dh !* dx0 / dxini
+                 dzz = dble(dz(ip, jp, kp)) / ddxini / dh !* dx0 / dxini
 
                  ! We can use d** to figure out which cell the particle is
                  ! in, since we've normalised to cell widths. Might have
                  ! gone out of the right hand side, so use mod
-                 ic = int(dble(ip) + dble(dxx) + 0.5d0)
-                 jc = int(dble(jp) + dble(dyy) + 0.5d0)
-                 kc = int(dble(kp) + dble(dzz) + 0.5d0)
+                 ic = int(dble(ip) + dxx + 0.5d0)
+                 jc = int(dble(jp) + dyy + 0.5d0)
+                 kc = int(dble(kp) + dzz + 0.5d0)
 
                  ! Calcaulate the offset from the new cell centre
-                 dxx1 = dble(dxx) - (dble(ic) - dble(ip) - 0.5d0)  
-                 dyy1 = dble(dyy) - (dble(jc) - dble(jp) - 0.5d0)
-                 dzz1 = dble(dzz) - (dble(kc) - dble(kp) - 0.5d0)
+                 dxx1 = dxx - (dble(ic) - dble(ip) - 0.5d0)  
+                 dyy1 = dyy - (dble(jc) - dble(jp) - 0.5d0)
+                 dzz1 = dzz - (dble(kc) - dble(kp) - 0.5d0)
 
+                 ! Check if we've wrapped the ic value around
+                 if (ic .gt. n1) ic = ic - n1
+                 if (ic .lt. 1) ic = ic + n1
+                 if (jc .gt. n2) jc = jc - n2
+                 if (jc .lt. 1) jc = jc + n2
+                 if (kc .gt. n3) kc = kc - n3
+                 if (kc .lt. 1) kc = kc + n3
+              
+                 ! Now calculate the +1th cell, and check if we've
+                 ! wrapped around
                  icp = ic + 1
                  jcp = jc + 1
                  kcp = kc + 1
-
-                 if (ic .gt. n1) then
-                    ic = ic - n1
-                    icp = ic + 1
-                 else if (icp .gt. n1) then
-                    icp = icp - n1
-                 end if
-
-                 if (jc .gt. n2) then
-                    jc = jc - n2
-                    jcp = jc + 1
-                 else if (jcp .gt. n2) then
-                    jcp = jcp - n2
-                 end if
-
-                 if (kc .gt. n3) then
-                    kc = kc - n3
-                    kcp = kc + 1
-                 else if (kcp .gt. n3) then
-                    kcp = kcp - n3
-                 end if
+                 if (icp .gt. n1) icp = icp - n1
+                 if (icp .lt. 1) icp = icp + n1
+                 if (jcp .gt. n2) jcp = jcp - n2
+                 if (jcp .lt. 1) jcp = jcp + n2
+                 if (kcp .gt. n3) kcp = kcp - n3
+                 if (kcp .lt. 1) kcp = kcp + n3
               
                  ! Check how large the offset is, this gives us an
                  ! idea of how much of the edge to remove in the ICs
@@ -728,14 +737,14 @@ subroutine gen_velcg(path, per)
                  tz = 1.0 - dzz1
 
                  ! Interpolate using cloud-in-cell
-                 vcg(ic, jc, kc) = vcg(ic, jc, kc) + vc(ip, jp, kp)*tx*ty*tz
-                 vcg(icp, jc, kc) = vcg(icp, jc, kc) + vc(ip, jp, kp)*dxx1*ty*tz
-                 vcg(ic, jcp, kc) = vcg(ic, jcp, kc) + vc(ip, jp, kp)*tx*dyy1*tz
-                 vcg(ic, jc, kcp) = vcg(ic, jc, kcp) + vc(ip, jp, kp)*tx*ty*dzz1
-                 vcg(icp, jcp, kc) = vcg(icp, jcp, kc) + vc(ip, jp, kp)*dxx1*dyy1*tz
-                 vcg(icp, jc, kcp) = vcg(icp, jc, kcp) + vc(ip, jp, kp)*dxx1*ty*dzz1
-                 vcg(ic, jcp, kcp) = vcg(ic, jcp, kcp) + vc(ip, jp, kp)*tx*dyy1*dzz1
-                 vcg(icp, jcp, kcp) = vcg(icp, jcp, kcp) + vc(ip, jp, kp)*dxx1*dyy1*dzz1
+                 vcg(ic, jc, kc) = vcg(ic, jc, kc) + vc(ip, jp, kp)*real(tx*ty*tz)
+                 vcg(icp, jc, kc) = vcg(icp, jc, kc) + vc(ip, jp, kp)*real(dxx1*ty*tz)
+                 vcg(ic, jcp, kc) = vcg(ic, jcp, kc) + vc(ip, jp, kp)*real(tx*dyy1*tz)
+                 vcg(ic, jc, kcp) = vcg(ic, jc, kcp) + vc(ip, jp, kp)*real(tx*ty*dzz1)
+                 vcg(icp, jcp, kc) = vcg(icp, jcp, kc) + vc(ip, jp, kp)*real(dxx1*dyy1*tz)
+                 vcg(icp, jc, kcp) = vcg(icp, jc, kcp) + vc(ip, jp, kp)*real(dxx1*ty*dzz1)
+                 vcg(ic, jcp, kcp) = vcg(ic, jcp, kcp) + vc(ip, jp, kp)*real(tx*dyy1*dzz1)
+                 vcg(icp, jcp, kcp) = vcg(icp, jcp, kcp) + vc(ip, jp, kp)*real(dxx1*dyy1*dzz1)
               end do
            end do
         end do
@@ -769,21 +778,25 @@ subroutine gen_velcg(path, per)
                  ! xc - cell indices
                  ! xcp - cell indices + 1
 
-                 dxx = dx(ip, jp, kp) / dxini! / (h0 / 100.) !* dx0 / dxini
-                 dyy = dy(ip, jp, kp) / dxini! / (h0 / 100.) !* dx0 / dxini
-                 dzz = dz(ip, jp, kp) / dxini! / (h0 / 100.) !* dx0 / dxini
+                 
+                 ! Convert the displcaments from comoving Mpc/h to
+                 ! units of cell width: dxx=1.0 means the particle is
+                 ! offset by 1 cell from the current cell centre
+                 dxx = dble(dx(ip, jp, kp)) / ddxini / dh !* dx0 / dxini
+                 dyy = dble(dy(ip, jp, kp)) / ddxini / dh !* dx0 / dxini
+                 dzz = dble(dz(ip, jp, kp)) / ddxini / dh !* dx0 / dxini
 
                  ! We can use d** to figure out which cell the particle is
                  ! in, since we've normalised to cell widths. Might have
                  ! gone out of the right hand side, so use mod
-                 ic = int(dble(ip) + dble(dxx) + 0.5d0)
-                 jc = int(dble(jp) + dble(dyy) + 0.5d0)
-                 kc = int(dble(kp) + dble(dzz) + 0.5d0)
+                 ic = int(dble(ip) + dxx + 0.5d0)
+                 jc = int(dble(jp) + dyy + 0.5d0)
+                 kc = int(dble(kp) + dzz + 0.5d0)
            
                  ! Calcaulate the offset from the new cell centre
-                 dxx1 = dble(dxx) - (dble(ic) - dble(ip) - 0.5d0)  
-                 dyy1 = dble(dyy) - (dble(jc) - dble(jp) - 0.5d0)
-                 dzz1 = dble(dzz) - (dble(kc) - dble(kp) - 0.5d0)
+                 dxx1 = dxx - (dble(ic) - dble(ip) - 0.5d0)  
+                 dyy1 = dyy - (dble(jc) - dble(jp) - 0.5d0)
+                 dzz1 = dzz - (dble(kc) - dble(kp) - 0.5d0)
 
                  ! Check how large the offset is, this gives us an idea
                  ! of how much of the edge to remove in the ICs
@@ -839,20 +852,20 @@ subroutine gen_velcg(path, per)
                  tz = 1.0 - dzz1
 
                  ! Interpolate using cloud-in-cell
-                 vcg(ic, jc, kc) = vcg(ic, jc, kc) + vc(ip, jp, kp)*tx*ty*tz
-                 vcg(icp, jc, kc) = vcg(icp, jc, kc) + vc(ip, jp, kp)*dxx1*ty*tz
-                 vcg(ic, jcp, kc) = vcg(ic, jcp, kc) + vc(ip, jp, kp)*tx*dyy1*tz
-                 vcg(ic, jc, kcp) = vcg(ic, jc, kcp) + vc(ip, jp, kp)*tx*ty*dzz1
-                 vcg(icp, jcp, kc) = vcg(icp, jcp, kc) + vc(ip, jp, kp)*dxx1*dyy1*tz
-                 vcg(icp, jc, kcp) = vcg(icp, jc, kcp) + vc(ip, jp, kp)*dxx1*ty*dzz1
-                 vcg(ic, jcp, kcp) = vcg(ic, jcp, kcp) + vc(ip, jp, kp)*tx*dyy1*dzz1
-                 vcg(icp, jcp, kcp) = vcg(icp, jcp, kcp) + vc(ip, jp, kp)*dxx1*dyy1*dzz1
+                 vcg(ic, jc, kc) = vcg(ic, jc, kc) + vc(ip, jp, kp)*real(tx*ty*tz)
+                 vcg(icp, jc, kc) = vcg(icp, jc, kc) + vc(ip, jp, kp)*real(dxx1*ty*tz)
+                 vcg(ic, jcp, kc) = vcg(ic, jcp, kc) + vc(ip, jp, kp)*real(tx*dyy1*tz)
+                 vcg(ic, jc, kcp) = vcg(ic, jc, kcp) + vc(ip, jp, kp)*real(tx*ty*dzz1)
+                 vcg(icp, jcp, kc) = vcg(icp, jcp, kc) + vc(ip, jp, kp)*real(dxx1*dyy1*tz)
+                 vcg(icp, jc, kcp) = vcg(icp, jc, kcp) + vc(ip, jp, kp)*real(dxx1*ty*dzz1)
+                 vcg(ic, jcp, kcp) = vcg(ic, jcp, kcp) + vc(ip, jp, kp)*real(tx*dyy1*dzz1)
+                 vcg(icp, jcp, kcp) = vcg(icp, jcp, kcp) + vc(ip, jp, kp)*real(dxx1*dyy1*dzz1)
               end do
            end do
         end do
         write(6, *) '---- done interpolating'
         ! Remove edges
-        cut = ceiling(max(cur_max, abs(cur_min))) + 1
+        cut = int(ceiling(max(cur_max, abs(cur_min)))) + 1
         ! vcg = vcg(1:n1, 1:n2, 1:n3)
 
         write(6, *) '-------- min(vcg) ', minval(vcg)
@@ -862,8 +875,8 @@ subroutine gen_velcg(path, per)
         write(6, *) '------------ cut', cut
 
 
-        write(6, *), '-------- max displacement (cell width = 1.0)', cur_max
-        write(6, *), '-------- min displacement (cell width = 1.0)', cur_min
+        write(6, *) '-------- max displacement (cell width = 1.0)', cur_max
+        write(6, *) '-------- min displacement (cell width = 1.0)', cur_min
                  
         ! Because of how we treated the periodic boundary conditions, we
         ! can either set the edge cells to zero, or use the ungridded
@@ -875,7 +888,6 @@ subroutine gen_velcg(path, per)
         vcg(n1-cut:n1, :, :) = vc(n1-cut:n1, :, :)
         vcg(:, n2-cut:n2, :) = vc(:, n2-cut:n2, :)
         vcg(:, :, n3-cut:n3) = vc(:, :, n3-cut:n3)
-
         ! Now average outwards in one dimension, from the zeroed cells
         do i = cut, 1, -1
            do j = 1, n2
@@ -932,18 +944,19 @@ subroutine gen_velcg(path, per)
         end do
      end do
 
-     
-        ! Write out the gridded velocity
-        write(6, *) '---- writing velcg'//xyz(ll:ll)
-        open(f, file=trim(path)//'ic_velcg'//xyz(ll:ll), form='unformatted')
-        write(f) n1, n2, n3, dxini, x1off, x2off, x3off, astart, omega_m, omega_l, h0
-        do k = 1, n3
-           write(f) ((vcg(i, j, k), i=1,n1), j=1,n2)
-        end do
-        close(f)
-        deallocate(vc, vcg)
-     end if
+  end if
+
+  ! Write out the gridded velocity
+  write(6, *) '---- writing velcg'//xyz(ll:ll)
+  open(f, file=trim(path)//'ic_velcg'//xyz(ll:ll), form='unformatted')
+  write(f) n1, n2, n3, dxini, x1off, x2off, x3off, astart, omega_m, omega_l, h0
+  do k = 1, n3
+     write(f) ((vcg(i, j, k), i=1,n1), j=1,n2)
   end do
+  close(f)
+  deallocate(vc, vcg)
+  
+end do
   
   ! Clean up
   deallocate(dx, dy, dz)
@@ -973,7 +986,7 @@ subroutine gen_vbc(path)
   integer :: mblk
   integer :: i, j, k, n1, n2, n3
   integer, parameter :: f=50
-  real :: dxini, x1off, x2off, x3off, astart, omegam, omegal, omega_b, h0
+  real :: dxini, x1off, x2off, x3off, astart, omega_m, omega_l, omega_b, h0
   real, allocatable, dimension(:, :, :) :: vbc, vb, vcg
   logical :: per
 
@@ -987,11 +1000,11 @@ subroutine gen_vbc(path)
   open(f, file=trim(path)//'ic_poscx', form='unformatted')
   rewind f
   ! Read header and print out cosmological parameters, for quick checking
-  read(f) n1, n2, n3, dxini, x1off, x2off, x3off, astart, omegam, omegal, h0
+  read(f) n1, n2, n3, dxini, x1off, x2off, x3off, astart, omega_m, omega_l, h0
   write(6, *) '-------- n1, n2, n3', n1, n2, n3
   write(6, *) '-------- astart', astart, ' zstart', 1.0/astart - 1.0
-  write(6, *) '-------- omega_m', omegam
-  write(6, *) '-------- omega_l', omegal
+  write(6, *) '-------- omega_m', omega_m
+  write(6, *) '-------- omega_l', omega_l
   write(6, *) '-------- H_0', h0
   call flush(6)
 

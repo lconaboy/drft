@@ -14,7 +14,7 @@
 #include "output.hh"
 
 
-//! Implementation of class grafic2_output_plugin 
+//! Implementation of class grafic2_dmm_output_plugin 
 /*!
  This class implements a grafic-2 (cf. Bertschinger 2001) compatible
  output format. With some RAMSES extras.
@@ -159,7 +159,7 @@ protected:
                             data[(i*n2+j)*n3+k] = 0.0;
             
             // write mask
-            sprintf(ff,"%s/level_%03d/ic_refmap_ures",fname_.c_str(), gh.levelmax() );
+            sprintf(ff,"%s/level_%03d/ic_refmap",fname_.c_str(), gh.levelmax() );
             std::ofstream ofs(ff,std::ios::binary|std::ios::trunc);
 	    write_file_header( ofs, gh.levelmax(), gh );
 
@@ -172,14 +172,6 @@ protected:
             write_file_header( ofs_metals, gh.levelmax(), gh );
 	      }
 
-	    // Added by LC, outputting grid values to try and make sense of them
-	    std::ofstream ofs_grid ("grid_values.dat");
-	    ofs_grid.open("grid_values.dat", std::ios::out | std::ios::app);
-	      if (ofs_grid.is_open())
-		{
-		  ofs_grid << levelmax_ <<  gh.get_grid(levelmax_)->offset(0) <<  gh.get_grid(levelmax_)->offset(1)<<  gh.get_grid(levelmax_)->offset(2) << "\n";
-		  ofs_grid.close();
-		}
            
             
             std::vector<float> block(n1*n2,0.0f);
@@ -226,17 +218,7 @@ protected:
             o1 = gh.get_grid(ilevel+1)->offset(0);
             o2 = gh.get_grid(ilevel+1)->offset(1);
             o3 = gh.get_grid(ilevel+1)->offset(2);
-
-
-	    	    // Added by LC, outputting grid values to try and make sense of them
-	    std::ofstream ofs_grid ("grid_values.dat");
-	    ofs_grid.open("grid_values.dat", std::ios::out | std::ios::app);	    
-	    if (ofs_grid.is_open())
-		{
-		  ofs_grid << ilevel <<  gh.get_grid(ilevel)->offset(0) <<  gh.get_grid(ilevel)->offset(1)<<  gh.get_grid(ilevel)->offset(2) << "\n";
-		  ofs_grid.close();
-		}
-	    
+            
             std::vector<float> data_coarse( n1c*n2c*n3c, 0.0f );
             
             /*if( ilevel <= levelmax_-2 )
@@ -251,11 +233,11 @@ protected:
 			    }*/
             
             size_t nref;
-            // nref = restrict_mask( n1, n2, n3, o1, o2, o3, n1c, n2c, n3c, &data[0], &data_coarse[0] );
+            nref = restrict_mask( n1, n2, n3, o1, o2, o3, n1c, n2c, n3c, &data[0], &data_coarse[0] );
             
             LOGINFO("%f of cells on level %d are refined",(double)nref/(n1c*n2c*n3c),ilevel);
             
-            sprintf(ff,"%s/level_%03d/ic_refmap_ures",fname_.c_str(), ilevel );
+            sprintf(ff,"%s/level_%03d/ic_refmap",fname_.c_str(), ilevel );
             std::ofstream ofs(ff,std::ios::binary|std::ios::trunc);
             write_file_header( ofs, ilevel, gh );
 
@@ -384,7 +366,7 @@ protected:
              << "/\n\n";
         
         
-		LOGINFO("The grafic2 output plug-in wrote the grid data to a partial");
+		LOGINFO("The grafic2_dmm output plug-in wrote the grid data to a partial");
 		LOGINFO("   RAMSES namelist file \'%s\'",fname_.c_str() );
     }
 	
@@ -575,9 +557,10 @@ public:
 	
 	void write_dm_density( const grid_hierarchy& gh )
 	{	
-	  //if(! bhavehydro_ )
-	  //		write_gas_density(gh);
-
+	  if(! bhavehydro_ ){
+	  		write_gas_density(gh);
+	  }
+	  else {
 		for(unsigned ilevel=levelmin_; ilevel<=levelmax_; ++ilevel )
 		{
 			
@@ -589,7 +572,7 @@ public:
 			write_file_header( ofs, ilevel, gh );
 			write_sliced_array( ofs, ilevel, gh );
 		}
-		
+	  }
 		
 		if( cf_.getValueSafe<bool>("output","ramses_nml",true) )
 			write_ramses_namelist(gh);
@@ -599,6 +582,7 @@ public:
         if( gh.levelmin() != gh.levelmax() )
           write_refinement_mask( gh );
 	}
+
 	
 	void write_dm_mass( const grid_hierarchy& gh )
 	{	/* do nothing, not used... */ }
@@ -618,6 +602,6 @@ public:
 };
 
 namespace{
-  output_plugin_creator_concrete<grafic2_dmm_output_plugin> creator("grafic2_dmm");
+	output_plugin_creator_concrete<grafic2_dmm_output_plugin> creator("grafic2_dmm");
 }
 

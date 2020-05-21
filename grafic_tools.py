@@ -600,7 +600,7 @@ def derive_vel(path, level, species):
     s[0].write_field(v, 'vel{0}'.format(species), out_dir=out_dir)
     
 
-def derive_vbc(path, level):
+def derive_vbc(path, level, per):
     """Calculates the velb, gridded velc and vbc fields using the
     subroutine velc from cic.f95. Make sure that cic.f95 has been
     compiled with f2py before running.
@@ -617,28 +617,49 @@ def derive_vbc(path, level):
     """
     import os
     import cic
+    import time
+    import warnings
 
     level_path = path+'level_{0:03d}/'.format(level)
 
-    # Check that none of the fields exist already, otherwise cic will
-    # throw an error
+    # Check that none of the fields exist already. cic just overwrites
+    # the existing files, so this can be a warning instead.
     if os.path.isfile(level_path+'ic_vbc'):
-        raise Exception(level_path+'ic_vbc exists')
+        warnings.warn(level_path+'ic_vbc exists, not regenerating.')
+        return
     
-    if ((not os.path.isfile(level_path+'ic_velcgx')) and
-        (not os.path.isfile(level_path+'ic_velcgy')) and
+    if ((not os.path.isfile(level_path+'ic_velcgx')) or
+        (not os.path.isfile(level_path+'ic_velcgy')) or
         (not os.path.isfile(level_path+'ic_velcgz'))):
         print('Deriving ic_velcg fields')
-        cic.gen_velcg(level_path, level)
+        cic.gen_velcg(level_path, per)
+
+        # Wait up to 30 seconds for them all to be written to disk
+        w = 0
+        while (((not os.path.isfile(level_path+'ic_velcgx')) and
+                (not os.path.isfile(level_path+'ic_velcgy')) and
+                (not os.path.isfile(level_path+'ic_velcgz')))):
+            if w < 30.0:
+                time.sleep(.5) # Wait half a second
+                w += 0.5
+            else:
+                raise Exception('Waited 30 seconds for velocity fields to be written to disk. Quitting.')
 
     else:
         print('Using existing ic_velcg fields')
     
-
     cic.gen_vbc(level_path)
+    
+    # Wait up to 20 seconds for it to be written to disk
+    w = 0.0
+    while (not os.path.isfile(level_path+'ic_vbc')):
+        if w < 30.0:
+            time.sleep(0.5) # Wait half a second
+        else:
+            raise Exception('Waited 30 seconds for ic_vbc to be written to disk. Quitting.')
 
 
-def derive_deltac(path, level, omega_b=None):
+def derive_deltac(path, level, per, omega_b=None):
     """Calculates the deltac field by CIC interpolating the CDM particle
     positions, using the delc routine from cic.f95. Make sure that
     cic.f95 has been compiled with f2py before running.
@@ -658,6 +679,7 @@ def derive_deltac(path, level, omega_b=None):
     """
     import os
     import cic
+    import warnings
     
     level_path = path+'level_{0:03d}/'.format(level)
 
@@ -666,7 +688,8 @@ def derive_deltac(path, level, omega_b=None):
     # Check that none of the fields exist already, otherwise cic will
     # throw an error
     if os.path.isfile(level_path+'ic_deltac'):
-        raise Exception(level_path+'ic_deltac exists')
+        warnings.warn(level_path+'ic_deltac exists, not regenerating.')
+        return
 
     # Get omega_b
     if omega_b is None:
@@ -684,4 +707,13 @@ def derive_deltac(path, level, omega_b=None):
     else:
         raise Exception('omega_b should be float or None')
         
-    cic.gen_delc(level_path, omega_b)
+    cic.gen_delc(level_path, omega_b, per)
+
+    # Wait up to 20 seconds for it to be written to disk
+    w = 0.0
+    while (not os.path.isfile(level_path+'ic_deltac')):
+        if w < 30.0:
+            time.sleep(0.5) # Wait half a second
+        else:
+            raise Exception('Waited 30 seconds for ic_deltac to be written to disk. Quitting.')
+    

@@ -195,8 +195,9 @@ class Linear:
 
 
     def realise_velocity(self):
-        """
-        Transform the velocity field from Fourier space to real space
+        """Transform the velocity field from Fourier space to real space, in
+        units of km/s
+
         """
         if self.real:
             for i in range(3):
@@ -230,7 +231,9 @@ class Linear:
 
     
     def realise_position(self):
-        """Transform the position field from Fourier space back to real space
+        """Transform the position field from Fourier space back to real space,
+        and convert to units of comoving Mpc/h for output
+
         """
         if self.real:
             for i in range(3):
@@ -238,7 +241,7 @@ class Linear:
             # self.pos_r = [np.nan_to_num(v) for v in self.pos_r]
         else:
             for i in range(3):
-                self.pos[i] = fft.ifftn(self.pos[i]).real
+                self.pos[i] = fft.ifftn(self.pos[i]).real * self.c.p['h']
         
 
 def generate(ic, qty, params=None, approx=False, real=True):

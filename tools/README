@@ -1,0 +1,11 @@
+tools/
+======
+
+	output_grafic2_dmm.cc
+	---------------------
+
+	Simple modification to the plugins/output_grafic2.cc in music
+	so that CDM overdensity is now written out to ic_deltac
+	(analogue to ic_deltab). To use, just copy to the plugins/
+	directory in music, and select output plugin to be
+	'grafic2_dmm'.

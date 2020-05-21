@@ -44,7 +44,7 @@ class Patch(object):
         self.field = field
 
 
-def work(path, level, patch_size, lin=False, verbose=True, ret_vbc=False):
+def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=False):
     """Computes a new set of biased grafic fields by convolving patches of
     the fields with bias factors computed using py_vbc.
 
@@ -65,6 +65,14 @@ def work(path, level, patch_size, lin=False, verbose=True, ret_vbc=False):
     barrier = comm.Barrier
     finalize = MPI.Finalize
 
+    if (lin and (rank == 0)):
+        vbc_utils.msg(rank, 'Biasing both deltab and deltac fields', verbose)
+    elif (rank == 0):
+        vbc_utils.msg(rank, 'Biasing deltab and velb fields', verbose)
+
+    if (ret_vbc and (rank == 0)):
+        vbc_utils.msg(rank, 'TESTING: writing vbc_patch field', verbose)
+        
     #mpi.msg("Loading initial conditions")
     vbc_utils.msg(rank, "Loading initial conditions.", verbose)
     
@@ -79,14 +87,18 @@ def work(path, level, patch_size, lin=False, verbose=True, ret_vbc=False):
             os.mkdir("./patches/level_{0:03d}".format(level))
             vbc_utils.msg(rank, 'Made patches directory.', verbose)
 
-        # Next, derive any fields we need that don't already exist. Start with vbc
+        # Next, derive any fields we need that don't already
+        # exist. Start with vbc. Need to know if we are doing periodic
+        # or non-periodic.
+        per = (level == levelmin)
+        
         if not os.path.isfile(path+"level_{0:03d}/ic_vbc".format(level)):
             vbc_utils.msg(rank, 'Deriving ic_vbc.', verbose)
-            grafic.derive_vbc(path, level)
+            grafic.derive_vbc(path, level, per)
         # Make sure the deltac field exists, if we need it
         if (lin) and (not os.path.isfile(path+"level_{0:03d}/ic_deltac".format(level))):
             vbc_utils.msg(rank, 'Deriving ic_deltac.', verbose)
-            grafic.derive_deltac(path, level)
+            grafic.derive_deltac(path, level, per)
 
     else:
         # Wait for rank 0 to write the velb, velc and vbc fields
@@ -159,6 +171,7 @@ def work(path, level, patch_size, lin=False, verbose=True, ret_vbc=False):
             vbc = None
 
             vbc_utils.msg(rank, "Loading patch: {0}.".format(patch), verbose)
+            # vbc_utils.msg(rank, "TESTING: origin {0}, dx_eps {1}".format(origin, dx_eps), verbose)
             deltab = ics[0].load_patch(origin, dx_eps)
             deltac = ics[1].load_patch(origin, dx_eps)
             vbc = ics[2].load_patch(origin, dx_eps)
@@ -235,6 +248,7 @@ def work(path, level, patch_size, lin=False, verbose=True, ret_vbc=False):
             vbc = None
 
             vbc_utils.msg(rank, "Loading patch: {0}.".format(patch), verbose)
+            # vbc_utils.msg(rank, "TESTING: origin {0}, dx_eps {1}".format(origin, dx_eps), verbose)
             delta = ics[0].load_patch(origin, dx_eps)
             velbx = ics[1].load_patch(origin, dx_eps)
             velby = ics[2].load_patch(origin, dx_eps)
@@ -312,10 +326,15 @@ def work(path, level, patch_size, lin=False, verbose=True, ret_vbc=False):
     vbc_utils.msg(rank, 'Done patches', verbose)
     # Wait until everyone has done patches
     barrier()
-    finalize()
+    # finalize()
 
+    # Then write
+    if rank == 0:
+        vbc_utils.msg(rank, 'Writing patches', verbose)
+        write(path, level, lin, verbose, ret_vbc, comm=comm)
 
-def write(path, level, lin, verbose=True):
+        
+def write(path, level, lin, verbose=True, ret_vbc=False, comm=None):
     """Writes the patches computed by 'work' to new grafic IC files
 
     :param path: (str) path to (unbiased) grafic fields
@@ -328,7 +347,9 @@ def write(path, level, lin, verbose=True):
     """
 
     # MPI stuff
-    comm = MPI.COMM_WORLD
+    if comm is None:
+        comm = MPI.COMM_WORLD
+        
     size = comm.Get_size()
     rank = comm.Get_rank()
     barrier = comm.Barrier
@@ -350,7 +371,10 @@ def write(path, level, lin, verbose=True):
             # Otherwise write out all the baryon fields
             fields = ['deltab', 'velbx', 'velby', 'velbz']
 
-        ics = [grafic.load_snapshot(path, level, field=field) for field in fields]
+        if ret_vbc: fields.append('vbc_patch')
+
+        # ics = [grafic.load_snapshot(path, level, field=field) for field in fields]
+        ics = [grafic.load_snapshot(path, level, field='deltab')]
 
         # Loop over fields
         for field in fields:
@@ -401,8 +425,8 @@ def write(path, level, lin, verbose=True):
             vbc_utils.msg(rank, 'Wrote {0} field.'.format(field), verbose)
 
         # Remove patches/level_xxx dir
-        vbc_utils.clean(level)
-        vbc_utils.msg(rank, 'Cleaned up.')
+        # vbc_utils.clean(level)
+        # vbc_utils.msg(rank, 'Cleaned up.')
 
         if lin:
             vbc_utils.msg(rank, 'Remember to use gen_ics to make the rest of the ICs!')
@@ -410,8 +434,8 @@ def write(path, level, lin, verbose=True):
     # We have to wait until rank 0 has done the final reading and
     # writing, then everything can finish at the same time
     vbc_utils.msg(rank, 'Done!')
-    barrier()
-    finalize()
+    # barrier()
+    # finalize()
         
 
 if __name__ == '__main__':
@@ -427,25 +451,19 @@ if __name__ == '__main__':
     path = sys.argv[1]
     level = int(sys.argv[2])
     patch_size = float(sys.argv[3])
-    mode = str(sys.argv[4])
+    levelmin = int(sys.argv[4])
+    mode = str(sys.argv[5])
     lin = False
     verbose = True
 
     # Optional linear argument
-    if len(sys.argv) > 5:
-        lin = bool(int(sys.argv[5]))
-    # Optional verbose argument
     if len(sys.argv) > 6:
-        verbose = bool(int(sys.argv[6]))
-
-    if lin:
-        print('Biasing both deltab and deltac fields', flush=True)
-    else:
-        print('Biasing deltab and velb fields', flush=True)
+        lin = bool(int(sys.argv[6]))
+    # Optional verbose argument
+    if len(sys.argv) > 7:
+        verbose = bool(int(sys.argv[7]))
 
     ret_vbc = True
-    if ret_vbc:
-        print('TESTING: writing vbc_patch field', flush=True)
 
     # Run the main loop
     try:    
@@ -454,11 +472,11 @@ if __name__ == '__main__':
             # fields. Not terribly efficient, as the other processes
             # are waiting for rank 0 to write, but the writing is
             # quite quick anyway.
-            work(path, level, patch_size, lin, verbose, ret_vbc)
-            write(path, level, lin, verbose)
+            work(path, level, patch_size, levelmin, lin, verbose, ret_vbc)
+            # write(path, level, lin, verbose, ret_vbc)
         elif mode == 'write':
             # In 'write' mode, we just write
-            write(path, level, lin, verbose)
+            write(path, level, lin, verbose, ret_vbc)
         else:
             raise Exception("mode is {0} -- should be 'work' or 'write'.".format(mode))
 

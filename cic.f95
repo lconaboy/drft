@@ -189,14 +189,14 @@ subroutine gen_delc(path, omega_b, per)
 
               ! We can use displacements to figure out which cell the
               ! particle is in, since we've normalised to cell widths
-              ic = int(dble(ip) + dxx + 0.5d0)
-              jc = int(dble(jp) + dyy + 0.5d0)
-              kc = int(dble(kp) + dzz + 0.5d0)
+              ic = int(dble(ip) + dxx)! + 0.5d0)
+              jc = int(dble(jp) + dyy)! + 0.5d0)
+              kc = int(dble(kp) + dzz)! + 0.5d0)
 
               ! Calcaulate the offset from the new cell centre
-              dxx1 = dxx - (dble(ic) - dble(ip) - 0.5d0)  
-              dyy1 = dyy - (dble(jc) - dble(jp) - 0.5d0)
-              dzz1 = dzz - (dble(kc) - dble(kp) - 0.5d0)
+              dxx1 = dxx - (dble(ic) - dble(ip))! - 0.5d0)  
+              dyy1 = dyy - (dble(jc) - dble(jp))! - 0.5d0)
+              dzz1 = dzz - (dble(kc) - dble(kp))! - 0.5d0)
 
               ! Check if we've wrapped the ic value around
               if (ic .gt. n1) ic = ic - n1
@@ -310,14 +310,14 @@ subroutine gen_delc(path, omega_b, per)
               ! We can use d** to figure out which cell the particle is
               ! in, since we've normalised to cell widths. Might have
               ! gone out of the right hand side, so use mod
-              ic = int(dble(ip) + dxx + 0.5d0)
-              jc = int(dble(jp) + dyy + 0.5d0)
-              kc = int(dble(kp) + dzz + 0.5d0)
+              ic = int(dble(ip) + dxx)! + 0.5d0)
+              jc = int(dble(jp) + dyy)! + 0.5d0)
+              kc = int(dble(kp) + dzz)! + 0.5d0)
            
               ! Calcaulate the offset from the new cell centre
-              dxx1 = dxx - (dble(ic) - dble(ip) - 0.5d0)  
-              dyy1 = dyy - (dble(jc) - dble(jp) - 0.5d0)
-              dzz1 = dzz - (dble(kc) - dble(kp) - 0.5d0)
+              dxx1 = dxx - (dble(ic) - dble(ip))! - 0.5d0)  
+              dyy1 = dyy - (dble(jc) - dble(jp))! - 0.5d0)
+              dzz1 = dzz - (dble(kc) - dble(kp))! - 0.5d0)
 
               ! Check how large the offset is, this gives us an idea
               ! of how much of the edge to remove in the ICs
@@ -410,77 +410,120 @@ subroutine gen_delc(path, omega_b, per)
      del_c(:, :, 1:cut) = 0.0
      del_c(:, 1:cut, :) = 0.0
      del_c(1:cut, :, :) = 0.0
-     del_c(n1-cut+1:n1, :, :) = 0.0
-     del_c(:, n2-cut+1:n2, :) = 0.0
-     del_c(:, :, n3-cut+1:n3) = 0.0
+     del_c((n1-cut+1):n1, :, :) = 0.0
+     del_c(:, (n2-cut+1):n2, :) = 0.0
+     del_c(:, :, (n3-cut+1):n3) = 0.0
 
      deallocate(dx)
      deallocate(dy)
      deallocate(dz)
 
-     ! Count for the averages
+
+     ! ! Count for the averages
      allocate(cnt(n1, n2, n3))
      cnt = 1.0
-     
-     ! Now average outwards in one dimension, from the zeroed cells
-     do i = cut, 1, -1
-        do j = 1, n2
-           do k = 1, n3
-             ! Check lhs edge
-              del_c(i, j, k) = del_c(i, j, k) + del_c(i+1, j, k)
-              cnt(i, j, k) = cnt(i, j, k) + 1.
-              
-              ! Check rhs edge
-              ii = n1 - i + 1
-              jj = j
-              kk = k
 
-              del_c(ii, jj, kk) =  del_c(ii, jj, kk) + del_c(ii-1, j, k)
-              cnt(ii, jj, kk) = cnt(ii, jj, kk) + 1.
+     do i = 2, n1
+        do j = 2, n2
+           do k = 2, n3
+              if ((i .le. cut) .or. (j .le. cut) .or. (k .le. cut)) then
+                 !if ((i .lt. n1) .and. (j .gt. n2) .and. (k .gt. n3)) then
+                    del_c(i, j, k) = del_c(i+1, j+1, k+1) + del_c(i, j, k)
+                    cnt(i, j, k) = cnt(i, j, k) + 1.
+
+              end if
+
+              if ((i .gt. n1-cut) .or. (j .gt. n2-cut) .or. (k .gt. n3-cut)) then
+!                 if ((i .gt. 1) .and. (j .gt. 1) .and. (k .gt. 1)) then
+                    del_c(i, j, k) = del_c(i-1, j-1, k-1) + del_c(i, j, k)
+                    cnt(i, j, k) = cnt(i, j, k) + 1.
+ 
+              end if
            end do
         end do
      end do
+
+     
+     do i = n1-1, 2, -1
+        do j = n2-1, 2, -1
+           do k = n3-1, 2, -1
+              if ((i .le. cut) .or. (j .le. cut) .or. (k .le. cut)) then
+                 !if ((i .lt. n1) .and. (j .gt. n2) .and. (k .gt. n3)) then
+                 del_c(i, j, k) = del_c(i+1, j+1, k+1) + del_c(i, j, k)
+                 cnt(i, j, k) = cnt(i, j, k) + 1.
+              end if
+
+              if ((i .gt. n1-cut) .or. (j .gt. n2-cut) .or. (k .gt. n3-cut)) then
+                 !if ((i .gt. 1) .and. (j .gt. 1) .and. (k .gt. 1)) then
+                    del_c(i, j, k) = del_c(i-1, j-1, k-1) + del_c(i, j, k)
+                    cnt(i, j, k) = cnt(i, j, k) + 1.
+                 
+              end if
+           end do
+        end do
+     end do
+     
+     del_c(1:n1, 1:n2, 1:n3) = del_c(1:n1, 1:n2, 1:n3) / cnt
+     
+     ! ! Now average outwards in one dimension, from the zeroed cells
+     ! do i = cut, 1, -1
+     !    do j = 1, n2
+     !       do k = 1, n3
+     !         ! Check lhs edge
+     !          del_c(i, j, k) = del_c(i, j, k) + del_c(i+1, j, k)
+     !          cnt(i, j, k) = cnt(i, j, k) + 1.
+              
+     !          ! Check rhs edge
+     !          ii = n1 - i + 1
+     !          jj = j
+     !          kk = k
+
+     !          del_c(ii, jj, kk) =  del_c(ii, jj, kk) + del_c(ii-1, j, k)
+     !          cnt(ii, jj, kk) = cnt(ii, jj, kk) + 1.
+     !       end do
+     !    end do
+     ! end do
     
-     do i = 1, n1
-        do j = cut, 1, -1
-           do k = 1, n3
-              del_c(i, j, k) = del_c(i, j, k) + del_c(i, j+1, k)
-              cnt(i, j, k) = cnt(i, j, k) + 1.
+     ! do i = 1, n1
+     !    do j = cut, 1, -1
+     !       do k = 1, n3
+     !          del_c(i, j, k) = del_c(i, j, k) + del_c(i, j+1, k)
+     !          cnt(i, j, k) = cnt(i, j, k) + 1.
 
-              ! Check rhs edge
-              ii = i
-              jj = n2 - j + 1
-              kk = k
+     !          ! Check rhs edge
+     !          ii = i
+     !          jj = n2 - j + 1
+     !          kk = k
 
-              del_c(ii, jj, kk) =  del_c(ii, jj, kk) + del_c(ii, jj-1, kk)
-              cnt(ii, jj, kk) = cnt(ii, jj, kk) + 1.
+     !          del_c(ii, jj, kk) =  del_c(ii, jj, kk) + del_c(ii, jj-1, kk)
+     !          cnt(ii, jj, kk) = cnt(ii, jj, kk) + 1.
               
-           end do
-        end do
-     end do
+     !       end do
+     !    end do
+     ! end do
 
-     do i = 1, n1
-        do j = 1, n2
-           do k = cut, 1, -1
-              ! Check lhs edge
-              del_c(i, j, k) = del_c(i, j, k) + del_c(i, j, k+1)
-              cnt(i, j, k) = cnt(i, j, k) + 1.
+     ! do i = 1, n1
+     !    do j = 1, n2
+     !       do k = cut, 1, -1
+     !          ! Check lhs edge
+     !          del_c(i, j, k) = del_c(i, j, k) + del_c(i, j, k+1)
+     !          cnt(i, j, k) = cnt(i, j, k) + 1.
 
-              ! Check rhs edge
-              ii = i
-              jj = j
-              kk = n3 - k + 1
+     !          ! Check rhs edge
+     !          ii = i
+     !          jj = j
+     !          kk = n3 - k + 1
 
-              del_c(ii, jj, kk) =  del_c(ii, jj, kk) + del_c(ii, jj, kk-1)
-              cnt(ii, jj, kk) = cnt(ii, jj, kk) + 1.
-           end do
-        end do
-     end do
+     !          del_c(ii, jj, kk) =  del_c(ii, jj, kk) + del_c(ii, jj, kk-1)
+     !          cnt(ii, jj, kk) = cnt(ii, jj, kk) + 1.
+     !       end do
+     !    end do
+     ! end do
 
-     ! Average for the edges
-     del_c = del_c(1:n1, 1:n2, 1:n3) / cnt
+     ! ! Average for the edges
+     ! del_c(1:n1, 1:n2, 1:n3) = del_c(1:n1, 1:n2, 1:n3) / cnt
      
-     write(6, *) '-------- each cell modified on average', sum(cnt) / real(3*n1*n2*cut)
+     ! write(6, *) '-------- each cell modified on average', sum(cnt) / real(3*n1*n2*cut)
      write(6, *) '-------- min(del_c) ', minval(del_c)
      write(6, *) '-------- max(del_c) ', maxval(del_c)
      
@@ -661,14 +704,14 @@ subroutine gen_velcg(path, per)
                  ! We can use d** to figure out which cell the particle is
                  ! in, since we've normalised to cell widths. Might have
                  ! gone out of the right hand side, so use mod
-                 ic = int(dble(ip) + dxx + 0.5d0)
-                 jc = int(dble(jp) + dyy + 0.5d0)
-                 kc = int(dble(kp) + dzz + 0.5d0)
+                 ic = int(dble(ip) + dxx)! + 0.5d0)
+                 jc = int(dble(jp) + dyy)! + 0.5d0)
+                 kc = int(dble(kp) + dzz)! + 0.5d0)
 
                  ! Calcaulate the offset from the new cell centre
-                 dxx1 = dxx - (dble(ic) - dble(ip) - 0.5d0)  
-                 dyy1 = dyy - (dble(jc) - dble(jp) - 0.5d0)
-                 dzz1 = dzz - (dble(kc) - dble(kp) - 0.5d0)
+                 dxx1 = dxx - (dble(ic) - dble(ip))! - 0.5d0)  
+                 dyy1 = dyy - (dble(jc) - dble(jp))! - 0.5d0)
+                 dzz1 = dzz - (dble(kc) - dble(kp))! - 0.5d0)
 
                  ! Check if we've wrapped the ic value around
                  if (ic .gt. n1) ic = ic - n1
@@ -738,8 +781,7 @@ subroutine gen_velcg(path, per)
         write(6, *) '-------- max(offset)', cur_max
         write(6, *) '-------- min(vcg) ', minval(vcg)
         write(6, *) '-------- max(vcg) ', maxval(vcg)
-
-        deallocate(vc, vcg)
+ 
      else
         write(6, *) '-------- using non-periodic boundary conditions'
         call flush(6)
@@ -770,14 +812,14 @@ subroutine gen_velcg(path, per)
                  ! We can use d** to figure out which cell the particle is
                  ! in, since we've normalised to cell widths. Might have
                  ! gone out of the right hand side, so use mod
-                 ic = int(dble(ip) + dxx + 0.5d0)
-                 jc = int(dble(jp) + dyy + 0.5d0)
-                 kc = int(dble(kp) + dzz + 0.5d0)
+                 ic = int(dble(ip) + dxx)! + 0.5d0)
+                 jc = int(dble(jp) + dyy)! + 0.5d0)
+                 kc = int(dble(kp) + dzz)! + 0.5d0)
            
                  ! Calcaulate the offset from the new cell centre
-                 dxx1 = dxx - (dble(ic) - dble(ip) - 0.5d0)  
-                 dyy1 = dyy - (dble(jc) - dble(jp) - 0.5d0)
-                 dzz1 = dzz - (dble(kc) - dble(kp) - 0.5d0)
+                 dxx1 = dxx - (dble(ic) - dble(ip))! - 0.5d0)  
+                 dyy1 = dyy - (dble(jc) - dble(jp))! - 0.5d0)
+                 dzz1 = dzz - (dble(kc) - dble(kp))! - 0.5d0)
 
                  ! Check how large the offset is, this gives us an idea
                  ! of how much of the edge to remove in the ICs
@@ -863,88 +905,168 @@ subroutine gen_velcg(path, per)
         ! can either set the edge cells to zero, or use the ungridded
         ! velocity. Both are incorrect, but I think using the ungridded
         ! value is less wrong than setting to zero.
-        vcg(:, :, 1:cut) = vc(:, :, 1:cut)
-        vcg(:, 1:cut, :) = vc(:, 1:cut, :)
-        vcg(1:cut, :, :) = vc(1:cut, :, :)
-        vcg(n1-cut+1:n1, :, :) = vc(n1-cut+1:n1, :, :)
-        vcg(:, n2-cut+1:n2, :) = vc(:, n2-cut+1:n2, :)
-        vcg(:, :, n3-cut+1:n3) = vc(:, :, n3-cut+1:n3)
+        ! vcg(1:n1, 1:cut, 1:n3) = 0.0
+        ! vcg(1:cut, 1:n2, 1:n3) = 0.0
+        ! vcg(1:n1, 1:n2, 1:cut) = 0.0
+        ! vcg(n1-cut+1:n1, 1:n2, 1:n3) = 0.0
+        ! vcg(1:n1, n2-cut+1:n2, 1:n3) = 0.0
+        ! vcg(1:n1, 1:n2, n3-cut+1:n3) = 0.0
 
-        deallocate(dx)
-        deallocate(dy)
-        deallocate(dz)
+        ! vcg(-1:0, :, :) = 0.0
+        ! vcg(:, -1:0, :) = 0.0
+        ! vcg(:, :, -1:0) = 0.0
 
+        ! vcg(n1:n1+2, :, :) = 0.0
+        ! vcg(:, n1:n1+2, :) = 0.0
+        ! vcg(:, :, n1:n1+2) = 0.0
+
+        
+        ! vcg(1:cut, 1:n2, 1:n3) = vc(1:cut, :, :)
+        ! vcg(1:n1, 1:cut, 1:n3) = vc(:, 1:cut, :)
+        ! vcg(1:n1, 1:n2, 1:cut) = vc(:, :, 1:cut)
+        ! vcg(n1-cut+1:n1, 1:n2, 1:n3) = vc(n1-cut+1:n1, :, :)
+        ! vcg(1:n1, n2-cut+1:n2, 1:n3) = vc(:, n2-cut+1:n2, :)
+        ! vcg(1:n1, 1:n2, n3-cut+1:n3) = vc(:, :, n3-cut+1:n3)
+
+        
+        ! ! Count for the averages
+        ! allocate(cnt(n1, n2, n3))
+        ! cnt = 1.0
+
+        ! do i = 2, n1
+        !    do j = 2, n2
+        !       do k = 2, n3
+        !          if ((i .le. cut) .or. (j .le. cut) .or. (k .le. cut)) then
+        !             !if ((i .lt. n1) .and. (j .gt. n2) .and. (k .gt. n3)) then
+        !             vcg(i, j, k) = vcg(i+1, j+1, k+1) + vcg(i, j, k)
+        !             cnt(i, j, k) = cnt(i, j, k) + 1.
+                    
+        !          end if
+
+        !          if ((i .gt. n1-cut) .or. (j .gt. n2-cut) .or. (k .gt. n3-cut)) then
+        !             !                 if ((i .gt. 1) .and. (j .gt. 1) .and. (k .gt. 1)) then
+        !             vcg(i, j, k) = vcg(i-1, j-1, k-1) + vcg(i, j, k)
+        !             cnt(i, j, k) = cnt(i, j, k) + 1.
+ 
+        !          end if
+        !       end do
+        !    end do
+        ! end do
+
+     
+        ! do i = n1-1, 2, -1
+        !    do j = n2-1, 2, -1
+        !       do k = n3-1, 2, -1
+        !          if ((i .le. cut) .or. (j .le. cut) .or. (k .le. cut)) then
+        !             !if ((i .lt. n1) .and. (j .gt. n2) .and. (k .gt. n3)) then
+        !             vcg(i, j, k) = vcg(i+1, j+1, k+1) + vcg(i, j, k)
+        !             cnt(i, j, k) = cnt(i, j, k) + 1.
+        !          end if
+
+        !          if ((i .gt. n1-cut) .or. (j .gt. n2-cut) .or. (k .gt. n3-cut)) then
+        !             !if ((i .gt. 1) .and. (j .gt. 1) .and. (k .gt. 1)) then
+        !             vcg(i, j, k) = vcg(i-1, j-1, k-1) + vcg(i, j, k)
+        !             cnt(i, j, k) = cnt(i, j, k) + 1.
+                 
+        !          end if
+        !       end do
+        !    end do
+        ! end do
+        
         ! Count for the averages
-        allocate(cnt(n1, n2, n3))
-        cnt = 1.0
+        !allocate(cnt(-1:n1+2, -1:n2+2, -1:n3+2))
+        !cnt = 1.0
      
         ! Now average outwards in one dimension, from the zeroed cells
-        do i = cut, 1, -1
-           do j = 1, n2
-              do k = 1, n3
-                 ! Check lhs edge
-                 vcg(i, j, k) = vcg(i, j, k) + vcg(i+1, j, k)
-                 cnt(i, j, k) = cnt(i, j, k) + 1.
-              
-                 ! Check rhs edge
-                 ii = n1 - i + 1
-                 jj = j
-                 kk = k
+        ! do i = cut, 1, -1
+        !    vcg(i, :, :) = 0.5*(vcg(i+1, :, :) + vcg(i, :, :))
+        ! end do
+        ! do j = cut, 1, -1
+        !    vcg(:, j, :) = 0.5*(vcg(:, j+1, :) + vcg(:, j, :))
+        ! end do
+        ! do k = cut, 1, -1
+        !    vcg(:, :, k) = 0.5*(vcg(:, :, k) + vcg(:, j, :))
+        ! end do
 
-                 vcg(ii, jj, kk) =  vcg(ii, jj, kk) + vcg(ii-1, j, k)
-                 cnt(ii, jj, kk) = cnt(ii, jj, kk) + 1.
-              end do
-           end do
-        end do
-    
-        do i = 1, n1
-           do j = cut, 1, -1
-              do k = 1, n3
-                 vcg(i, j, k) = vcg(i, j, k) + vcg(i, j+1, k)
-                 cnt(i, j, k) = cnt(i, j, k) + 1.
+        ! do i = n1-cut+1, n1
+        !    vcg(i, :, :) = 0.5*(vcg(i-1, :, :) + vcg(i, :, :))
+        ! end do
+        ! do j = n2-cut+1, n2
+        !    vcg(:, j, :) = 0.5*(vcg(:, j-1, :) + vcg(:, j, :))
+        ! end do
+        ! do k = n3-cut+1, n3
+        !    vcg(:, :, k) = 0.5*(vcg(:, :, k-1) + vcg(:, :, k))
+        ! end do
 
-                 ! Check rhs edge
-                 ii = i
-                 jj = n2 - j + 1
-                 kk = k
-
-                 vcg(ii, jj, kk) =  vcg(ii, jj, kk) + vcg(ii, jj-1, kk)
-                 cnt(ii, jj, kk) = cnt(ii, jj, kk) + 1.
-              
-              end do
-           end do
-        end do
         
-        do i = 1, n1
-           do j = 1, n2
-              do k = cut, 1, -1
-                 ! Check lhs edge
-                 vcg(i, j, k) = vcg(i, j, k) + vcg(i, j, k+1)
-                 cnt(i, j, k) = cnt(i, j, k) + 1.
+        
+        ! do i = cut, n1 - cut
+        !    do j = cut, 1, -1
+        !       do k = 1, n3
+        !          vcg(i, j, k) = vcg(i, j, k) + vcg(i, j+1, k)
+        !          cnt(i, j, k) = cnt(i, j, k) + 1.
 
-                 ! Check rhs edge
-                 ii = i
-                 jj = j
-                 kk = n3 - k + 1
+        !          ! Check rhs edge
+        !          ii = i
+        !          jj = n2 - j + 1
+        !          kk = k
 
-                 vcg(ii, jj, kk) =  vcg(ii, jj, kk) + vcg(ii, jj, kk-1)
-                 cnt(ii, jj, kk) = cnt(ii, jj, kk) + 1.
-              end do
-           end do
-        end do
+        !          vcg(ii, jj, kk) =  vcg(ii, jj, kk) + vcg(ii, jj-1, kk)
+        !          cnt(ii, jj, kk) = cnt(ii, jj, kk) + 1.
+              
+        !       end do
+        !    end do
+        ! end do
+        
+        ! do i = cut, n1 - cut
+        !    do j = cut, n2 - cut
+        !       do k = cut, 1, -1
+        !          ! Check lhs edge
+        !          write(6, *) 'vcg(',i, j, k,') before', vcg(i, j, k)
+        !          vcg(i, j, k) = vcg(i, j, k) + vcg(i, j, k+1)
+        !          cnt(i, j, k) = cnt(i, j, k) + 1.
+        !          write(6, *) 'vcg(',i, j, k,') after', vcg(i, j, k)
 
-        vcg = vcg(1:n1, 1:n2, 1:n3) / cnt
+        !          ! Check rhs edge
+        !          ii = i
+        !          jj = j
+        !          kk = n3 - k + 1
+
+        !          write(6, *) 'vcg(',i, j, k,') before', vcg(i, j, k)
+        !          vcg(ii, jj, kk) = vcg(ii, jj, kk) + vcg(ii, jj, kk-1)
+        !          cnt(ii, jj, kk) = cnt(ii, jj, kk) + 1.
+        !          write(6, *) 'vcg(',i, j, k,') after', vcg(i, j, k)
+        !       end do
+        !    end do
+        ! end do
+
+        ! vcg = vcg / cnt
+
+        ! ! Write out the gridded velocity
+        ! write(6, *) '---- writing cnt'//xyz(ll:ll)
+
+        ! open(f, file=trim(path)//'ic_cnt'//xyz(ll:ll), form='unformatted')
+        ! rewind f
+        ! write(f) n1, n2, n3, dxini, x1off, x2off, x3off, astart, omega_m, omega_l, h0
+        ! do k = 1, n3
+        !    write(f) ((cnt(i, j, k), i=1,n1), j=1,n2)
+        ! end do
+        ! close(f)
+        
+        !deallocate(cnt)
  
-        ! Write out the gridded velocity
-        write(6, *) '---- writing velcg'//xyz(ll:ll)
-        open(f, file=trim(path)//'ic_velcg'//xyz(ll:ll), form='unformatted')
-        write(f) n1, n2, n3, dxini, x1off, x2off, x3off, astart, omega_m, omega_l, h0
-        do k = 1, n3
-           write(f) ((vcg(i, j, k), i=1,n1), j=1,n2)
-        end do
-        close(f)
-        deallocate(vc, vcg, cnt)
      end if
+     ! Write out the gridded velocity
+     write(6, *) '---- writing velcg'//xyz(ll:ll)
+
+     open(f, file=trim(path)//'ic_velcg'//xyz(ll:ll), form='unformatted')
+     rewind f
+     write(f) n1, n2, n3, dxini, x1off, x2off, x3off, astart, omega_m, omega_l, h0
+     do k = 1, n3
+        write(f) ((vcg(i, j, k), i=1,n1), j=1,n2)
+     end do
+     close(f)
+     deallocate(vc, vcg)
   end do
   
   ! Clean up

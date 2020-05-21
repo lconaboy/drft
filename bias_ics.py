@@ -51,6 +51,8 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=Fal
     :param path: (str) path to (unbiased) grafic fields
     :param level: (int) level of ICs to work on
     :param patch_size: (float) patch size in comoving Mpc
+    :param levelmin: (int) overall minimum level of ICs, used for determining whether
+    to use periodic CIC interpolation
     :param lin: (bool) only bias deltac/deltab (True) or deltab/velb* (False)?
     :param verbose: (bool) controls printout
     :param ret_vbc: (bool) testing feature, generate an IC file of the patched vbc

@@ -1,4 +1,4 @@
-def main(path, level, cur_dir=False, um=None):
+def main(path, level, levelmin, cur_dir=False, um=None):
     """Function for generating initial conditions files using the
     ic_deltab, ic_deltac files and various linear approximations,
     which are detailed in linear.py. Writes the IC files and a
@@ -8,6 +8,9 @@ def main(path, level, cur_dir=False, um=None):
         (str) path to original IC files (they won't be modified)
     :param level: 
         (int) level of the IC files
+    :param levelmin:
+        (int) minimum overall level of the IC files, to determine 
+        whether periodic CIC interpolation is used
     :param cur_dir:
         (bool) write the IC files to the current dir (i.e. path/level_xxx)
     :param um: 
@@ -25,6 +28,9 @@ def main(path, level, cur_dir=False, um=None):
     import grafic_tools as grafic
     
     xyz = 'xyz'
+
+    # Periodic CIC?
+    per = (level == levelmin)
     
     if cur_dir:
         write_dir = path
@@ -49,7 +55,7 @@ def main(path, level, cur_dir=False, um=None):
 
     # Generate deltac field if it doesn't exist
     if not os.path.isfile(write_path+'ic_deltac'):
-        grafic.derive_deltac(path, level)
+        grafic.derive_deltac(path, level, per)
 
     # Generate the velocity fields for the baryons
     print('---- deriving baryon velocities')
@@ -78,15 +84,18 @@ def main(path, level, cur_dir=False, um=None):
     for i in range(3):
         ic.write_field(f[i], 'posc'+xyz[i], out_dir=write_path)
 
-    # Finally, the linear ICs need the original deltab, refmap and pvar
-    # files. Make this optional because they may be large files and some
-    # might prefer symlinking
+    # Finally, the linear ICs need the original deltab, deltac, refmap
+    # and pvar files. Make this optional because they may be large
+    # files and some might prefer symlinking
     if um == 'sl':
         print('---- symlinking unmodified files')
 
         os.symlink(path+'level_{0:03d}/ic_deltab'.format(level),
                      write_path+'ic_deltab')
 
+        os.symlink(path+'level_{0:03d}/ic_deltac'.format(level),
+                   write_path+'ic_deltac')
+        
         # Might not be zoom
         try:
             os.symlink(path+'level_{0:03d}/ic_refmap'.format(level),
@@ -109,6 +118,9 @@ def main(path, level, cur_dir=False, um=None):
         shutil.copy2(path+'level_{0:03d}/ic_deltab'.format(level),
                      write_path+'ic_deltab')
 
+        shutil.copy2(path+'level_{0:03d}/ic_deltac'.format(level),
+                     write_path+'ic_deltac')
+        
         # Might not be zoom
         try:
             shutil.copy2(path+'level_{0:03d}/ic_refmap'.format(level),
@@ -116,28 +128,39 @@ def main(path, level, cur_dir=False, um=None):
         except:
             print('-------- not copying refmap')
 
-        # Might not have passive variables
-        try:
-            shutil.copy2(path+'level_{0:03d}/ic_pvar_00001'.format(level),
-                         write_path+'ic_pvar_00001')
-        except:
-            print('-------- not copying pvar')
+        # Might not have passive variables, try up to four just in
+        # case. Could do this more efficiently with a glob.
+        for ii in range(1, 4):
+            try:
+                shutil.copy2(path+'level_{0:03d}/ic_pvar_{1:05d}'.format(level, ii),
+                             write_path+'ic_pvar_{0:05d}'.format(ii))
+            except:
+                print('-------- not copying pvar_{0:05d}'.format(ii))
 
     else:
-        print('---- not doing anything with unmodified files (e.g. deltab!)')
+        print('---- not doing anything with unmodified files (e.g. deltab)!')
 
 if __name__ == '__main__':
     import sys
 
+    if len(sys.argv) < 4:
+        print('Usage: python gen_ics.py <path/to/ics/> <current level> <min level> [<write to current dir?> <unmodified files?>]')
+        sys.exit()
+    
     path = sys.argv[1]
     level = int(sys.argv[2])
+    levelmin = int(sys.argv[3])
     cur_dir = False
     um = None
     
     # Optional
-    if len(sys.argv) > 3:
-        cur_dir = bool(int(sys.argv[3]))
     if len(sys.argv) > 4:
-        um = sys.argv[4]
+        cur_dir = bool(int(sys.argv[4]))
+    if len(sys.argv) > 5:
+        um = sys.argv[5]
 
-    main(path, level, cur_dir, um)
+    print('Working on', path)
+    print('Working on level', level,'with levelmin', levelmin)
+    print('Working in modes: cur_dir', cur_dir, 'um', um)
+        
+    main(path, level, levelmin, cur_dir, um)

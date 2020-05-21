@@ -75,7 +75,7 @@ subroutine gen_delc(path, omega_b, per)
   integer :: i, j, k
   integer :: ip, jp, kp, ic, jc, kc, n1, n2, n3
   integer :: icp, jcp, kcp
-  integer :: ii, jj, kk, cut, pad, cnt
+  integer :: ii, jj, kk, cut, pad!, cnt
   integer, parameter :: f=50
   double precision :: mp, dxx, dyy, dzz, tx, ty, tz, dxx1, dyy1, dzz1
   !real :: mp, dxx, dyy, dzz, tx, ty, tz, dxx1, dyy1, dzz1
@@ -85,7 +85,7 @@ subroutine gen_delc(path, omega_b, per)
   ! real :: rho_cr = 2.775e11  ! h^2 Msol/Mpc^3
   double precision :: cur_max, cur_min, dh, ddxini
   ! real :: cur_max, cur_min, old_maxval
-  real, allocatable, dimension(:, :, :) :: dx, dy, dz, del_c
+  real, allocatable, dimension(:, :, :) :: dx, dy, dz, del_c, cnt
 
   write(6, *) 'Interpolating CDM overdensity'
 
@@ -410,25 +410,33 @@ subroutine gen_delc(path, omega_b, per)
      del_c(:, :, 1:cut) = 0.0
      del_c(:, 1:cut, :) = 0.0
      del_c(1:cut, :, :) = 0.0
-     del_c(n1-cut:n1, :, :) = 0.0
-     del_c(:, n2-cut:n2, :) = 0.0
-     del_c(:, :, n3-cut:n3) = 0.0
+     del_c(n1-cut+1:n1, :, :) = 0.0
+     del_c(:, n2-cut+1:n2, :) = 0.0
+     del_c(:, :, n3-cut+1:n3) = 0.0
 
+     deallocate(dx)
+     deallocate(dy)
+     deallocate(dz)
+
+     ! Count for the averages
+     allocate(cnt(n1, n2, n3))
+     cnt = 1.0
+     
      ! Now average outwards in one dimension, from the zeroed cells
      do i = cut, 1, -1
         do j = 1, n2
            do k = 1, n3
-              ! Check lhs edge
-              del_c(i, j, k) = 0.5 * (del_c(i, j, k) + del_c(i+1, j, k))
-              cnt = cnt + 1
-
+             ! Check lhs edge
+              del_c(i, j, k) = del_c(i, j, k) + del_c(i+1, j, k)
+              cnt(i, j, k) = cnt(i, j, k) + 1.
+              
               ! Check rhs edge
-              ii = n1 - i - 1
+              ii = n1 - i + 1
               jj = j
               kk = k
 
-              del_c(ii, jj, kk) =  0.5 * (del_c(ii, jj, kk) + del_c(ii-1, j, k))
-              cnt = cnt + 1                          
+              del_c(ii, jj, kk) =  del_c(ii, jj, kk) + del_c(ii-1, j, k)
+              cnt(ii, jj, kk) = cnt(ii, jj, kk) + 1.
            end do
         end do
      end do
@@ -436,16 +444,16 @@ subroutine gen_delc(path, omega_b, per)
      do i = 1, n1
         do j = cut, 1, -1
            do k = 1, n3
-              del_c(i, j, k) = 0.5 * (del_c(i, j, k) + del_c(i, j+1, k))
-              cnt = cnt + 1
+              del_c(i, j, k) = del_c(i, j, k) + del_c(i, j+1, k)
+              cnt(i, j, k) = cnt(i, j, k) + 1.
 
               ! Check rhs edge
               ii = i
-              jj = n2 - j - 1
+              jj = n2 - j + 1
               kk = k
 
-              del_c(ii, jj, kk) =  0.5 * (del_c(ii, jj, kk) + del_c(ii, jj-1, kk))
-              cnt = cnt + 1
+              del_c(ii, jj, kk) =  del_c(ii, jj, kk) + del_c(ii, jj-1, kk)
+              cnt(ii, jj, kk) = cnt(ii, jj, kk) + 1.
               
            end do
         end do
@@ -455,74 +463,27 @@ subroutine gen_delc(path, omega_b, per)
         do j = 1, n2
            do k = cut, 1, -1
               ! Check lhs edge
-              del_c(i, j, k) = 0.5 * (del_c(i, j, k) + del_c(i, j, k+1))
-              cnt = cnt + 1
+              del_c(i, j, k) = del_c(i, j, k) + del_c(i, j, k+1)
+              cnt(i, j, k) = cnt(i, j, k) + 1.
 
               ! Check rhs edge
               ii = i
               jj = j
-              kk = n3 - k - 1
+              kk = n3 - k + 1
 
-              del_c(ii, jj, kk) =  0.5 * (del_c(ii, jj, kk) + del_c(ii, jj, kk-1))
-              cnt = cnt + 1
+              del_c(ii, jj, kk) =  del_c(ii, jj, kk) + del_c(ii, jj, kk-1)
+              cnt(ii, jj, kk) = cnt(ii, jj, kk) + 1.
            end do
         end do
      end do
 
+     ! Average for the edges
+     del_c = del_c(1:n1, 1:n2, 1:n3) / cnt
      
-     ! do i = 1, n1
-     !    do j = cut, 1, -1
-     !       do k = 1, n3
-     !          ! Check lhs edge
-     !          if ((del_c(i, j, k) .lt. -0.5) .or. (del_c(i, j, k) .gt. 0.5)) then
-     !             del_c(i, j, k) = 0.0
-     !             cnt = cnt + 1
-     !          end if
-
-     !          ! Check rhs edge
-     !          ii = i
-     !          jj = n2 - j - 1
-     !          kk = k
-
-     !          if ((del_c(ii, jj, kk) .lt. -0.5) .or. (del_c(ii, jj, kk) .gt. 0.5)) then
-     !             del_c(ii, jj, kk) = 0.0
-     !             cnt = cnt + 1
-     !          end if
-              
-     !       end do
-     !    end do
-     ! end do
-
-     ! do i = 1, n1
-     !    do j = 1, n2
-     !       do k = 1, 3*cut
-     !          ! Check lhs edge
-     !          if ((del_c(i, j, k) .lt. -0.5) .or. (del_c(i, j, k) .gt. 0.5)) then
-     !             del_c(i, j, k) = 0.0
-     !             cnt = cnt + 1
-     !          end if
-
-     !          ! Check rhs edge
-     !          ii = i
-     !          jj = j
-     !          kk = n3 - k - 1
-
-     !          if ((del_c(ii, jj, kk) .lt. -0.5) .or. (del_c(ii, jj, kk) .gt. 0.5)) then
-     !             del_c(ii, jj, kk) = 0.0
-     !             cnt = cnt + 1
-     !          end if
-              
-     !       end do
-     !    end do
-     ! end do
-     
-     write(6, *) '-------- fraction of edge cells modified', real(cnt) / real(n1*n2*n3)
+     write(6, *) '-------- each cell modified on average', sum(cnt) / real(3*n1*n2*cut)
      write(6, *) '-------- min(del_c) ', minval(del_c)
      write(6, *) '-------- max(del_c) ', maxval(del_c)
      
-     deallocate(dx)
-     deallocate(dy)
-     deallocate(dz)
      
   end if
   
@@ -551,6 +512,26 @@ subroutine gen_delc(path, omega_b, per)
      ! write(f) mblk
   end do
   close(f)
+
+  ! if (.not. per) then
+  !    write(6, *) '---- writing cnt'
+  !    call flush(6)
+  !    open(f, file=trim(path)//'ic_cnt', form='unformatted') !, access='stream')
+  !    rewind f
+  !    ! Write the header, don't need to do this if we don't use
+  !    ! access='stream'
+  !    ! write(f) hblk
+  !    write(f) n1, n2, n3, dxini, x1off, x2off, x3off, astart, omega_m, omega_l, h0
+  !    ! write(f) hblk
+  !    ! Write the main block
+  !    do k=1,n3
+  !       ! write(f) mblk
+  !       write(f) ((cnt(i, j, k), i=1,n1), j=1,n2)
+  !       ! write(f) mblk
+  !    end do
+  !    close(f)
+  !    deallocate(cnt)
+  ! end if
 
   deallocate(del_c)
 
@@ -582,13 +563,13 @@ subroutine gen_velcg(path, per)
   integer :: mblk
   integer :: ic, jc, kc, icp, jcp, kcp, n1, n2, n3
   integer :: i, j, k, ip, jp, kp, ll
-  integer :: ii, jj, kk, cut, pad, cnt
+  integer :: ii, jj, kk, cut, pad!, cnt
   integer, parameter :: f=50
   double precision :: dxx, dyy, dzz, tx, ty, tz, dxx1, dyy1, dzz1
   real :: dxini, x1off, x2off, x3off, astart, omega_m, omega_l, omega_b, h0
   double precision :: cur_max, cur_min, ddxini, dh
   double precision, parameter :: rhoc = 2.775d11  ! h^2 Msol/Mpc^3
-  real, allocatable, dimension(:, :, :) :: dx, dy, dz, vc, vcg
+  real, allocatable, dimension(:, :, :) :: dx, dy, dz, vc, vcg, cnt
 
   xyz = 'xyz'
   
@@ -885,25 +866,33 @@ subroutine gen_velcg(path, per)
         vcg(:, :, 1:cut) = vc(:, :, 1:cut)
         vcg(:, 1:cut, :) = vc(:, 1:cut, :)
         vcg(1:cut, :, :) = vc(1:cut, :, :)
-        vcg(n1-cut:n1, :, :) = vc(n1-cut:n1, :, :)
-        vcg(:, n2-cut:n2, :) = vc(:, n2-cut:n2, :)
-        vcg(:, :, n3-cut:n3) = vc(:, :, n3-cut:n3)
+        vcg(n1-cut+1:n1, :, :) = vc(n1-cut+1:n1, :, :)
+        vcg(:, n2-cut+1:n2, :) = vc(:, n2-cut+1:n2, :)
+        vcg(:, :, n3-cut+1:n3) = vc(:, :, n3-cut+1:n3)
+
+        deallocate(dx)
+        deallocate(dy)
+        deallocate(dz)
+
+        ! Count for the averages
+        allocate(cnt(n1, n2, n3))
+        cnt = 1.0
+     
         ! Now average outwards in one dimension, from the zeroed cells
         do i = cut, 1, -1
            do j = 1, n2
               do k = 1, n3
                  ! Check lhs edge
-                 vcg(i, j, k) = 0.5 * (vcg(i, j, k) + vcg(i+1, j, k))
-                 cnt = cnt + 1
-
+                 vcg(i, j, k) = vcg(i, j, k) + vcg(i+1, j, k)
+                 cnt(i, j, k) = cnt(i, j, k) + 1.
+              
                  ! Check rhs edge
-                 ii = n1 - i - 1
+                 ii = n1 - i + 1
                  jj = j
                  kk = k
 
-                 vcg(ii, jj, kk) =  0.5 * (vcg(ii, jj, kk) + vcg(ii-1, j, k))
-                 cnt = cnt + 1
-                            
+                 vcg(ii, jj, kk) =  vcg(ii, jj, kk) + vcg(ii-1, j, k)
+                 cnt(ii, jj, kk) = cnt(ii, jj, kk) + 1.
               end do
            end do
         end do
@@ -911,52 +900,52 @@ subroutine gen_velcg(path, per)
         do i = 1, n1
            do j = cut, 1, -1
               do k = 1, n3
-                 vcg(i, j, k) = 0.5 * (vcg(i, j, k) + vcg(i, j+1, k))
-                 cnt = cnt + 1
+                 vcg(i, j, k) = vcg(i, j, k) + vcg(i, j+1, k)
+                 cnt(i, j, k) = cnt(i, j, k) + 1.
 
                  ! Check rhs edge
                  ii = i
-                 jj = n2 - j - 1
+                 jj = n2 - j + 1
                  kk = k
 
-                 vcg(ii, jj, kk) =  0.5 * (vcg(ii, jj, kk) + vcg(ii, jj-1, kk))
-                 cnt = cnt + 1
+                 vcg(ii, jj, kk) =  vcg(ii, jj, kk) + vcg(ii, jj-1, kk)
+                 cnt(ii, jj, kk) = cnt(ii, jj, kk) + 1.
               
+              end do
            end do
         end do
-     end do
-     
-     do i = 1, n1
-        do j = 1, n2
-           do k = cut, 1, -1
-              ! Check lhs edge
-              vcg(i, j, k) = 0.5 * (vcg(i, j, k) + vcg(i, j, k+1))
-              cnt = cnt + 1
+        
+        do i = 1, n1
+           do j = 1, n2
+              do k = cut, 1, -1
+                 ! Check lhs edge
+                 vcg(i, j, k) = vcg(i, j, k) + vcg(i, j, k+1)
+                 cnt(i, j, k) = cnt(i, j, k) + 1.
 
-              ! Check rhs edge
-              ii = i
-              jj = j
-              kk = n3 - k - 1
+                 ! Check rhs edge
+                 ii = i
+                 jj = j
+                 kk = n3 - k + 1
 
-              vcg(ii, jj, kk) =  0.5 * (vcg(ii, jj, kk) + vcg(ii, jj, kk-1))
-              cnt = cnt + 1
+                 vcg(ii, jj, kk) =  vcg(ii, jj, kk) + vcg(ii, jj, kk-1)
+                 cnt(ii, jj, kk) = cnt(ii, jj, kk) + 1.
+              end do
            end do
         end do
-     end do
 
-  end if
-
-  ! Write out the gridded velocity
-  write(6, *) '---- writing velcg'//xyz(ll:ll)
-  open(f, file=trim(path)//'ic_velcg'//xyz(ll:ll), form='unformatted')
-  write(f) n1, n2, n3, dxini, x1off, x2off, x3off, astart, omega_m, omega_l, h0
-  do k = 1, n3
-     write(f) ((vcg(i, j, k), i=1,n1), j=1,n2)
+        vcg = vcg(1:n1, 1:n2, 1:n3) / cnt
+ 
+        ! Write out the gridded velocity
+        write(6, *) '---- writing velcg'//xyz(ll:ll)
+        open(f, file=trim(path)//'ic_velcg'//xyz(ll:ll), form='unformatted')
+        write(f) n1, n2, n3, dxini, x1off, x2off, x3off, astart, omega_m, omega_l, h0
+        do k = 1, n3
+           write(f) ((vcg(i, j, k), i=1,n1), j=1,n2)
+        end do
+        close(f)
+        deallocate(vc, vcg, cnt)
+     end if
   end do
-  close(f)
-  deallocate(vc, vcg)
-  
-end do
   
   ! Clean up
   deallocate(dx, dy, dz)

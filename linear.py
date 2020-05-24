@@ -237,7 +237,7 @@ class Linear:
         """
         if self.real:
             for i in range(3):
-                self.pos[i] = fft.irfftn(self.pos[i])
+                self.pos[i] = fft.irfftn(self.pos[i]) * self.c.p['h']
             # self.pos_r = [np.nan_to_num(v) for v in self.pos_r]
         else:
             for i in range(3):

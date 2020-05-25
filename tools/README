@@ -9,3 +9,11 @@ tools/
 	(analogue to ic_deltab). To use, just copy to the plugins/
 	directory in music, and select output plugin to be
 	'grafic2_dmm'.
+
+
+	ic_slice.py
+	-----------
+
+	Plots a slice of the biased and unbiased ICs
+	side-by-side. Works if the biased ics are still in the
+	level/ics_ramses_vbc/ directory.

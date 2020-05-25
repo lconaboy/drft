@@ -35,6 +35,7 @@ def main(path, level, levelmin, cur_dir=False, um=None):
     if cur_dir:
         write_dir = path
         write_path = path + 'level_{0:03d}/'.format(level)
+        um = None  # don't do anything with unmodified files
     else:
         write_dir = path + 'level_{0:03d}/ics_linear/'.format(level)
         write_path = path + 'level_{0:03d}/ics_linear/level_{0:03d}/'.format(level)

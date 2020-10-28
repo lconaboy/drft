@@ -127,7 +127,9 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=Fal
     # achieved if the zoom region is actually cubic
     ncubes = np.zeros(3)
     for i in range(3):
-        div = np.array([float(i) for i in vbc_utils.divisors(ics[0].n[i], mode='yield')])
+        # div = np.array([float(i) for i in vbc_utils.divisors(ics[0].n[i], mode='yield')])
+        div = np.array([float(i) for i in vbc_utils.divisors(ics[0].n[i], mode='yield')
+                        if i <= 20])  # rough limit to stop using too small patches
         idx = np.abs((ics[0].n[i] / div) * ics[0].dx - patch_size).argmin()
         ncubes[i] = int(div[idx])
 

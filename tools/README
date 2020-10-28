@@ -17,3 +17,10 @@ tools/
 	Plots a slice of the biased and unbiased ICs
 	side-by-side. Works if the biased ics are still in the
 	level/ics_ramses_vbc/ directory.
+
+
+	ic_anim.py
+	----------
+
+	Creates a slice animation of the x-y plane, stepping through
+	the z-plane.

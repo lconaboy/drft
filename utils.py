@@ -120,6 +120,9 @@ def compute_bias(ics, vbc, zstart=1000, kmin=0.1, kmax=10000, n=100, delta=False
     zstart=1000
     rms = vbc_rms(vbc)
     rms_recom = rms * (1001./(1.0 + z))
+
+    print('vbc rms', rms)
+    print('vbc rms_recom', rms_recom)
     
     # Boxsize doesn't make a difference when calculating the power
     # spectra using py_vbc. The power spectrum tuple contains (p_c, p_b, p_vc,

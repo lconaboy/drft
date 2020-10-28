@@ -14,8 +14,9 @@ Example
     data = s.load_box()
 
 TODO 
-    - having both Cube and Snapshot is redundant, there should be a
-      way to make this neater but I haven't got time to do it now
+
+    - add case where a grafic Cube is being read, but
+      scipy.FortranFile is unavailable
 
 """
 
@@ -448,14 +449,17 @@ class Snapshot:
         return '%s/ic_%s' % (self.level_dir, field)
 
 
-class Cube:
+class Cube:    
     
-    def __init__(self, path):
-        """Class for reading in the result of using the RAMSES
-        utils/f90/*2cube routines
+    def __init__(self, path, grafic=False):
+        """Class for reading in the result of using the modified RAMSES
+        utils/f90/*2cube routines. I modified the routines to output
+        aexp as a header.
 
         :param path: 
             (str) path to cube
+        :param grafic:
+            (bool) use grafic file format?
         :returns: 
             snapshot instance
         :rtype: 
@@ -464,7 +468,8 @@ class Cube:
         """
 
         self.path = path
-
+        self.grafic = grafic
+        self.aexp = self.read_header()
 
     def load_box(self):
         """Loads the entire grafic file into memory.
@@ -475,20 +480,75 @@ class Cube:
             (array)
 
         """
-        
-        with open(self.path, "rb") as f:
-            # Skip past the initial record marker
-            f.seek(4, 0)
-            # Read in size of cube
-            nx, ny, nz = np.fromfile(f, dtype=np.int32, count=3)
-            print('Read in cube of size ({0}, {1}, {2})'.format(nx, ny, nz))
-            # Skip past the final record marker
-            f.seek(4, 1)
+        try:
+            from scipy.io import FortranFile
+            f = FortranFile(self.path, 'r')
+            print('---- using FortranFile')
+            # Read in grafic format, good for files over 2GB, where
+            # the binary record would get split up into sub-records
+            if self.grafic:
+                print('-------- reading in grafic format')
+                h = f.read_record(dtype=np.int32)  # Not bothered about
+                                                   # aexp, so read all as
+                                                   # ints
+                box = np.zeros(shape=(h[0], h[1], h[2]))
 
-            box = np.fromfile(f, dtype=np.float32,
-                              count=(nx * ny * nz)).reshape(nx, ny, nz)
+                for k in range(h[2]):
+                    box[:, :, k] = f.read_record(dtype=np.float32).reshape((h[0], h[1]), order='F')     
+                print('---- read in cube of size ({0}, {1}, {2})'.format(h[0], h[1], h[2]))
+                
+            else:
+                print('-------- reading in binary format')
+                h = f.read_record(dtype=np.int32)  # Not bothered about
+                                                   # aexp, so read all as
+                                                   # ints
+                print(h)
+                print('---- read in cube of size ({0}, {1}, {2})'.format(h[1], h[2], h[3]))
+                                             
+                box = f.read_record(dtype=np.float32).reshape((h[1], h[2], h[3]), order='F')
             
+        except:
+            # Quietly fail
+            if self.grafic: return
+            
+            with open(self.path, "rb") as f:
+                # Skip past the initial record marker and the aexp header
+                hi = np.fromfile(f, dtype=np.uint32, count=1) # f.seek(8, 0)
+                aexp = np.fromfile(f, dtype=np.float32, count=1) # f.seek(8, 0)
+                # Read in size of cube
+                nx, ny, nz = np.fromfile(f, dtype=np.int32, count=3)
+                print('Read in cube of size ({0}, {1}, {2})'.format(nx, ny, nz))
+                # Skip past the final record marker
+                hf = np.fromfile(f, dtype=np.uint32, count=1) # f.seek(8, 0) # f.seek(4, 1)
+                hi = np.fromfile(f, dtype=np.uint32, count=1) # f.seek(8, 0) # f.seek(4, 1)     
+                box = np.fromfile(f, dtype=np.float32,
+                                  count=(nx * ny * nz)).reshape(nx, ny, nz)
+                hf = np.fromfile(f, dtype=np.uint32, count=1)
         return box
+
+    def read_header(self):
+        try:
+            from scipy.io import FortranFile
+            f = FortranFile(self.path, 'r')
+            h = f.read_record(dtype=np.float32)  # Not bothered about
+                                                 # n*, so read all as
+                                                 # floats
+            if self.grafic:
+                aexp = h[7]
+            else:
+                aexp = h[0]
+
+        except:
+            # Quietly fail
+            if self.grafic: return
+            
+            with open(self.path, "rb") as f:
+                # Skip past initial record marker
+                f.seek(4, 0)
+                aexp = np.fromfile(f, dtype=np.float32, count=1)
+                print('Output at a = ', aexp)
+
+        return aexp
 
     
 

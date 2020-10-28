@@ -630,7 +630,7 @@ def derive_vel(path, level, species):
 
     """
     # Check that species is correct
-    assert species in ['b', 'cg'], "Species should be either 'b' or 'cg'"
+    assert species in ['b', 'c'], "Species should be either 'b' or 'c'"
     
     # First create the fields
     fields = ['vel{0}{1}'.format(species, c) for c in ['x', 'y', 'z']]
@@ -687,36 +687,35 @@ def derive_vbc(path, level, per):
     if os.path.isfile(level_path+'ic_vbc'):
         warnings.warn(level_path+'ic_vbc exists, not regenerating.')
         return
-    
-    if ((not os.path.isfile(level_path+'ic_velcgx')) or
-        (not os.path.isfile(level_path+'ic_velcgy')) or
-        (not os.path.isfile(level_path+'ic_velcgz'))):
-        print('Deriving ic_velcg fields')
-        cic.gen_velcg(level_path, per)
 
-        # Wait up to 30 seconds for them all to be written to disk
-        w = 0
-        while (((not os.path.isfile(level_path+'ic_velcgx')) and
-                (not os.path.isfile(level_path+'ic_velcgy')) and
-                (not os.path.isfile(level_path+'ic_velcgz')))):
-            if w < 30.0:
-                time.sleep(.5) # Wait half a second
-                w += 0.5
-            else:
-                raise Exception('Waited 30 seconds for velocity fields to be written to disk. Quitting.')
+    # Initialise vbc
+    s = load_snapshot(path, level, 'deltab')
+    vbc = np.zeros(s.n)
 
-    else:
-        print('Using existing ic_velcg fields')
+    for c in ['x', 'y', 'z']:
+        print('---- working on vel' + c)
+        vb = load_snapshot(path, level, 'velb'+c).load_box()
+        print('-------- read in velb' + c)
+        print('DEBUGGING: min, max', vb.min(), vb.max())
+        
+        vc = load_snapshot(path, level, 'velc'+c).load_box()
+        print('-------- read in velc' + c)
+        print('DEBUGGING: min, max', vc.min(), vc.max())
+        
+        
+        vbc += (vb - vc) ** 2.
+
+    vbc = np.sqrt(vbc)
+    print('---- writing vbc field')
+    s.write_field(vbc, 'vbc')
     
-    cic.gen_vbc(level_path)
-    
-    # Wait up to 20 seconds for it to be written to disk
-    w = 0.0
-    while (not os.path.isfile(level_path+'ic_vbc')):
-        if w < 30.0:
-            time.sleep(0.5) # Wait half a second
-        else:
-            raise Exception('Waited 30 seconds for ic_vbc to be written to disk. Quitting.')
+    # # Wait up to 20 seconds for it to be written to disk
+    # w = 0.0
+    # while (not os.path.isfile(level_path+'ic_vbc')):
+    #     if w < 30.0:
+    #         time.sleep(0.5) # Wait half a second
+    #     else:
+    #         raise Exception('Waited 30 seconds for ic_vbc to be written to disk. Quitting.')
 
 
 def derive_deltac(path, level, per, omega_b=None):

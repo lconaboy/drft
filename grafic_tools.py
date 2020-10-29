@@ -676,7 +676,7 @@ def derive_vbc(path, level, per):
 
     """
     import os
-    import cic
+    # import cic
     import time
     import warnings
 

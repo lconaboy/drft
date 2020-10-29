@@ -721,13 +721,15 @@ def derive_vbc(path, level, per):
 def impose_vbc(path, level, v):
     """Function for imposing a constant v_bc=v in the x-direction of the
     baryon velocities. The velocities in other dimensions are simply
-    the CDM velocity fields.
+    the CDM velocity fields. Remember v is the velocity at the time of
+    the initial conditions, to get the v at recombination you need to
+    scale it as v_rec = v * 1001 / (1 + z_i)
 
     Example
 
     import grafic_tools as grafic
 
-    v = 30.0
+    v = 6.0  # ~30 km/s at z=1000
     path = './'
     level = 7
 

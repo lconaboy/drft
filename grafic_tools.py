@@ -719,6 +719,22 @@ def derive_vbc(path, level, per):
 
 
 def impose_vbc(path, level, v):
+    """Function for imposing a constant v_bc=v in the x-direction of the
+    baryon velocities. The velocities in other dimensions are simply
+    the CDM velocity fields.
+
+    Example
+
+    import grafic_tools as grafic
+
+    v = 30.0
+    path = './'
+    level = 7
+
+    grafic.impose_vbc(path, level, v)
+
+    """
+    
     import os
     import time
     import warnings

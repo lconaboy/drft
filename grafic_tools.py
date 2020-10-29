@@ -718,6 +718,57 @@ def derive_vbc(path, level, per):
     #         raise Exception('Waited 30 seconds for ic_vbc to be written to disk. Quitting.')
 
 
+def impose_vbc(path, level, v):
+    """Function for imposing a constant v_bc=v in the x-direction of the
+    baryon velocities. The velocities in other dimensions are simply
+    the CDM velocity fields.
+
+    Example
+
+    import grafic_tools as grafic
+
+    v = 30.0
+    path = './'
+    level = 7
+
+    grafic.impose_vbc(path, level, v)
+
+    """
+    
+    import os
+    import time
+    import warnings
+
+    level_path = os.path.join(path, 'level_{0:03d}/'.format(level))
+    vbc_path = os.path.join(level_path, 'constant_vbc/')
+    vbcl_path = os.path.join(level_path, 'constant_vbc/level_{0:03d}/'.format(level))
+    
+    # Make directory to store vbc files in
+    if not os.path.isdir(vbc_path):
+        os.mkdir(vbc_path)
+    if not os.path.isdir(vbcl_path):
+        os.mkdir(vbcl_path)
+
+        
+    # Initialise and write vbc
+    s = load_snapshot(path, level, 'deltab')
+    vb = np.ones(s.n, dtype=np.float32) * v
+    print('---- writing vbc')
+    s.write_field(vb, 'vbc', out_dir=vbcl_path)    
+
+    for c in ['x', 'y', 'z']:
+        print('---- working on vel' + c)
+        print('-------- reading velc' + c)
+        vb = load_snapshot(path, level, 'velc'+c).load_box()
+
+        # Apply v_bc in x-direction
+        if c == 'x': vb += v
+
+        print('-------- writing velb' + c)
+        s.write_field(vb, 'velb'+c, out_dir=vbcl_path)
+
+    
+
 def derive_deltac(path, level, per, omega_b=None):
     """Calculates the deltac field by CIC interpolating the CDM particle
     positions, using the delc routine from cic.f95. Make sure that

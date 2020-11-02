@@ -24,3 +24,10 @@ tools/
 
 	Creates a slice animation of the x-y plane, stepping through
 	the z-plane.
+
+
+	constant_vbc.py
+	---------------
+
+	Imposes a constant v_bc on the initial conditions files for a
+	specified level and magnitude of the v_bc.

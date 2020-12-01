@@ -1,3 +1,4 @@
+import os
 import numpy as np
 
 """Tools for reading in grafic files. A Snapshot instance won't
@@ -336,7 +337,7 @@ class Snapshot:
 
         """
         
-        return self.path+'level_{0:03d}/ic_{1}'.format(self.level, self.field)
+        return os.path.join(self.path, 'level_{0:03d}'.format(self.level), 'ic_'+self.field)
 
 
     def write_header(self, f):
@@ -433,20 +434,22 @@ class Snapshot:
 
     @property
     def level_dir(self):
-        return '{0}/level_{1:03d}/'.format(self.path, self.level)
+        # return '{0}/level_{1:03d}/'.format(self.path, self.level)
+        return os.path.join(self.path, 'level_{1:03d}'.format(self.level))
 
 
     def field_exists_on_disk(self, field):
         '''
         Checks if field is written to disk
         '''
-        import os
+        # import os
         fname = self.field_fname(field)
         return os.path.isfile(fname)
 
 
     def field_fname(self, field):
-        return '%s/ic_%s' % (self.level_dir, field)
+        # return '%s/ic_%s' % (self.level_dir, field)
+        return os.path.join(self.level_dir, 'ic_'+field)
 
 
 class Cube:    

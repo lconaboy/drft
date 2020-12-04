@@ -59,24 +59,32 @@ def downsample(path, level, field, level_s):
     for ii in range(n_s):
         for jj in range(n_s):
             for kk in range(n_s):
+                tmp = np.zeros(s**3)
+                
                 # Check whether we've looped around
                 iis = np.arange(ii*s, ii*s + s)
                 jjs = np.arange(jj*s, jj*s + s)
                 kks = np.arange(kk*s, kk*s + s)
-            
-                iis =  iis % n
-                jjs =  jjs % n
-                kks =  kks % n
 
-                # print(ii)
-                # print(iis)
-                # print(jjs)
-                # print(kks)
-                
-                box_s[ii, jj, kk] = np.mean(box[iis, jjs, kks])
-
+                l = 0
+                for iii in iis:
+                    for jjj in jjs:
+                        for kkk in kks:
+                            tmp[l] = box[iii, jjj, kkk]
+                            l += 1
+                            
+                box_s[ii, jj, kk] = np.mean(tmp)
 
     return box_s
+
+
+def get_cen(pp, n):
+    """Gets the centre of the chosen cell in code units ([0., 1.]) for
+    coordinates pp = [ii, jj, kk] and original grid size n."""
+
+    s = 2**(level - level_s)
+    
+    return [((p*s + s//2) % n) / n for p in pp]
 
 
 path = '/home/lc589/projects/bd/test_ics/test_ics_p18'
@@ -90,6 +98,7 @@ d_tol = 0.001  # how close to mean density?
 n_res = 20     # how many regions?
 
 # Load up downsampled boxes
+box = ics.load_box()
 d_box = downsample(path, level, 'deltab', level_s)
 v_box = downsample(path, level, 'vbc', level_s)
 
@@ -102,12 +111,23 @@ print('---- found {0} regions with |\delta| < {1}'.format(d_idx.shape[0], d_tol)
 v_idx = d_idx[np.argsort(v_box[d_idx[:, 0], d_idx[:, 1], d_idx[:, 2]]), :]
 
 h = '-------- v_bc (km/s) | \delta'
-s = '         {0:>7.5}     | {1:>5.5}'
+s = '         {0:>7.5}     | {1:>7.5}'
 print(h)
+
+out = np.zeros((n_res, 5))
+j = 0
 
 # Sorts are done in ascending order, so read backwards
 for i in range(-1, -1 - n_res, -1):
     v_i = v_box[v_idx[i, 0], v_idx[i, 1], v_idx[i, 2]]
     d_i = d_box[v_idx[i, 0], v_idx[i, 1], v_idx[i, 2]]
+    cc = get_cen([v_idx[i, 0], v_idx[i, 1], v_idx[i, 2]], 2**level)
 
     print(s.format(v_i*fac, d_i))
+    
+    out[j, 0] = v_i*fac
+    out[j, 1] = d_i
+    out[j, 2:] = cc
+    j += 1
+    
+np.savetxt('out.txt', out, fmt='%10.5f', header='v_bc,rec (km/s) \delta x y z')

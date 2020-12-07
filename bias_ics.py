@@ -92,16 +92,17 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=Fal
         # Next, derive any fields we need that don't already
         # exist. Start with vbc. Need to know if we are doing periodic
         # or non-periodic.
-        per = (level == levelmin)
+        # per = (level == levelmin)
         
         if not os.path.isfile(path+"level_{0:03d}/ic_vbc".format(level)):
-            vbc_utils.msg(rank, 'Deriving ic_vbc.', verbose)
-            grafic.derive_vbc(path, level, per)
+            # vbc_utils.msg(rank, 'Deriving ic_vbc.', verbose)
+            # grafic.derive_vbc(path, level, per)
+            raise Exception("'ic_vbc' doesn't exist. Run cic_vel.f90.")
         # Make sure the deltac field exists, if we need it
         if (lin) and (not os.path.isfile(path+"level_{0:03d}/ic_deltac".format(level))):
-            vbc_utils.msg(rank, 'Deriving ic_deltac.', verbose)
-            grafic.derive_deltac(path, level, per)
-
+            # vbc_utils.msg(rank, 'Deriving ic_deltac.', verbose)
+            # grafic.derive_deltac(path, level, per)
+            raise Exception("'lin' mode is not currently supported.")
     else:
         # Wait for rank 0 to write the velb, velc and vbc fields
         while not os.path.isfile(path+"level_{0:03d}/ic_vbc".format(level)):

@@ -1,4 +1,4 @@
-def main(path, level, field, cmap='viridis'):
+def main(path, level, field, cmap='viridis', vlim=None):
     import numpy as np
     import grafic_tools as grafic
     import matplotlib.pyplot as plt
@@ -9,8 +9,13 @@ def main(path, level, field, cmap='viridis'):
 
     # Load data
     x = grafic.load_snapshot(path, level, field).load_box()
-    vmin = x.min()
-    vmax = x.max()
+    
+    if vlim is None:
+        vmin = x.min()
+        vmax = x.max()
+    else:
+        vmin = vlim[0]
+        vmax = vlim[1]
 
     # Set up figure
     fig, ax = plt.subplots(figsize=(6, 6))
@@ -32,15 +37,19 @@ if __name__ == '__main__':
     import sys
     
     if len(sys.argv) < 4:
-        print('Usage: python ic_anim.py <path> <level> <field> [<cmap>]')
+        print('Usage: python ic_anim.py <path> <level> <field> [<cmap> <vmin> <vmax>]')
         sys.exit()
         
     path = sys.argv[1]
     level = int(sys.argv[2])
     field = sys.argv[3]
     cmap = 'viridis'
+    vlim = None
 
     if len(sys.argv) > 4:
         cmap = sys.argv[4]
+    
+    if len(sys.argv) > 5:
+        vlim = [float(sys.argv[5]), float(sys.argv[6])]
 
-    main(path, level, field, cmap)
+    main(path, level, field, cmap, vlim)

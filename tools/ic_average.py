@@ -87,9 +87,14 @@ def get_cen(pp, n):
     return [((p*s + s//2) % n) / n for p in pp]
 
 
-path = '/home/lc589/projects/bd/test_ics/test_ics_p18'
-level = 7
-level_s = 4  # level to downsample to, i.e. n_samp = 2**level_s
+# path = '/home/lc589/projects/bd/test_ics/test_ics_p18'
+# level = 7
+# level_s = 4  # level to downsample to, i.e. n_samp = 2**level_s
+
+path = './'
+level = 9
+level_s = 6
+
 ics = grafic.load_snapshot(path, level, 'deltab')
 
 fac = 1001. * ics.cosmo['aexp']  # scale v_bc to z=1000

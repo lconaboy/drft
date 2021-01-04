@@ -3,7 +3,6 @@ tools/
 
 	output_grafic2_dmm.cc
 	---------------------
-
 	Simple modification to the plugins/output_grafic2.cc in music
 	so that CDM overdensity is now written out to ic_deltac
 	(analogue to ic_deltab). To use, just copy to the plugins/
@@ -13,7 +12,6 @@ tools/
 
 	ic_slice.py
 	-----------
-
 	Plots a slice of the biased and unbiased ICs
 	side-by-side. Works if the biased ics are still in the
 	level/ics_ramses_vbc/ directory.
@@ -21,13 +19,17 @@ tools/
 
 	ic_anim.py
 	----------
-
 	Creates a slice animation of the x-y plane, stepping through
 	the z-plane.
 
 
 	constant_vbc.py
 	---------------
-
 	Imposes a constant v_bc on the initial conditions files for a
 	specified level and magnitude of the v_bc.
+
+
+	ic_mass_diff.py
+	---------------
+	Compares the mass in the baryon overdensity field between
+	biased and unbiased ICs, and returns the v_bc dependence.

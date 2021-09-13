@@ -16,11 +16,48 @@ def fft_sample_spacing_components(N):
 
 def vbc_rms(vbc_field):
     '''
-    Computes the rms vbc in the box
+    Computes the rms vbc in the box.  Do not use for interpolated v_bc
+    -- gives too much credance to the unphysical values at the edges
+    of the box.  Use vbc_med instead.
     '''
     rms = np.sqrt(np.mean(vbc_field ** 2))
     return rms
 
+
+def vbc_med(vbc_field):
+    """
+    Computes the median vbc in the box.  Better for interpolated
+    (particularly non-periodic) interpolated values.
+    """
+    med = np.median(vbc_field)
+
+    return med
+
+
+def vbc_patch_dist(vbc_field, origin):
+    import matplotlib.pyplot as plt
+    
+    nbins = (vbc_field.shape[0] * vbc_field.shape[1] *
+             vbc_field.shape[2]) // 4000  # keep ~4000 elements in each bin
+
+    rms = np.sqrt(np.mean(vbc_field ** 2))
+    rms_cut = np.sqrt(np.mean(vbc_field[vbc_field<50] ** 2))
+    med = np.median(vbc_field)
+    # rmm = np.sqrt(np.median(vbc_field**2))
+
+    fig, ax = plt.subplots(figsize=(6, 6))
+    ax.hist(vbc_field.ravel(), bins=nbins, histtype='step')
+    ax.axvline(rms, c='r', ls='solid', label='rms')
+    ax.axvline(med, c='m', ls='dotted', label='median')
+    # ax.axvline(rmm, c='g', ls='dotted', label='rmm')
+    ax.axvline(rms_cut, c='saddlebrown', ls='dashed', label='rms $<$ 50 km s$^{{-1}}$ cut')
+    ax.set_xlabel('v$_{{\\sf bc}}$ (km s$^{{-1}}$)')
+    ax.set_ylabel('N')
+    ax.legend()
+    fig.savefig('vbc_dist_{0}_{1}_{2}.pdf'.format(
+        origin[0], origin[1], origin[2]), bbox_inches='tight')
+    
+    
 def msg(rank, s, verbose=True):
     if verbose:
         print('[rank {0}]: {1}'.format(rank, s), flush=True)
@@ -118,7 +155,14 @@ def compute_bias(ics, vbc, zstart=1000, kmin=0.1, kmax=10000, n=100, delta=False
     # v_bc redshifts away, so calculate the v_bc at z=zstart
     z = ics.z
     zstart=1000
-    rms = vbc_rms(vbc)
+    
+    # LC - switched to the median instead, as the rms was giving too
+    # extreme values, particularly near the edge in non-periodic
+    # interpolated vbc fields
+    
+    # rms = vbc_rms(vbc)
+    rms = vbc_med(vbc)
+    
     rms_recom = rms * (1001./(1.0 + z))
 
     print('vbc rms', rms)

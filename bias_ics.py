@@ -122,6 +122,8 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=Fal
 
     # Padding around the patches
     pad = 8
+    # print('---- testing with extra padding')
+    # pad = 16
 
     # Calculate the number of cubes for each dimension, we want an
     # equal number of cubes in each dimension and this is most easily
@@ -264,6 +266,10 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=Fal
             velbz = ics[3].load_patch(origin, dx_eps)
             vbc = ics[4].load_patch(origin, dx_eps)
 
+            # TESTING
+            # vbc_utils.vbc_patch_dist(vbc, origin)
+            # continue
+            
             # Add to \delta sum for correction
             x_shape, y_shape, z_shape = delta.shape
             deltab_tmp = np.sum(delta[0 + pad:x_shape - pad,

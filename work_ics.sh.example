@@ -1,0 +1,31 @@
+#!/bin/bash -l
+#
+#SBATCH --job-name=work_ics
+#SBATCH --account=
+#SBATCH --partition=
+#SBATCH --time=00:40:00
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=28
+#SBATCH --output=jobout/%x.%j.out
+#SBATCH --error=jobout/%x.%j.err
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=
+#SBATCH --array=12
+#======START=====
+
+module load gnu_comp
+module load openmpi
+module unload python
+module load pythonconda3/4.5.4
+
+echo "Working on ${SLURM_ARRAY_TASK_ID}"
+
+drft="${HOME}/drft/bias_ics.py"
+ic_path=
+level=$SLURM_ARRAY_TASK_ID
+dx=0.74294  # 0.5 Mpc / h
+lin=0  # 0 - do just baryons, 1 - do deltab and deltac (linear)
+
+mpirun -n $SLURM_NTASKS python3 $drft $ic_path $level $dx "work" $lin
+
+#=====END====

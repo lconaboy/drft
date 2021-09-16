@@ -94,7 +94,8 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=Fal
         # or non-periodic.
         # per = (level == levelmin)
         
-        if not os.path.isfile(path+"level_{0:03d}/ic_vbc".format(level)):
+        if not os.path.isfile(
+                os.path.join(path, "level_{0:03d}/ic_vbc".format(level))):
             # vbc_utils.msg(rank, 'Deriving ic_vbc.', verbose)
             # grafic.derive_vbc(path, level, per)
             raise Exception("'ic_vbc' doesn't exist. Run cic_vel.f90.")
@@ -105,7 +106,8 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=Fal
             raise Exception("'lin' mode is not currently supported.")
     else:
         # Wait for rank 0 to write the velb, velc and vbc fields
-        while not os.path.isfile(path+"level_{0:03d}/ic_vbc".format(level)):
+        while not os.path.isfile(
+                os.path.join(path, "level_{0:03d}/ic_vbc".format(level))):
             time.sleep(1.0e-3)
 
     if lin:

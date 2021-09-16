@@ -86,12 +86,20 @@ def apply_density_bias(ics, k_bias, b, N, delta_x=None):
 
     # print "boxsize = ", boxsize, delta_x.shape[0]
 
-    k = None
+    # k = None
     if boxsize != ics.boxsize:
         # Resample k as we may be using a subregion
-        k = fft_sample_spacing(delta_x.shape[0], boxsize).flatten()
+        # k = fft_sample_spacing(delta_x.shape[0], boxsize).flatten()
+        pass
     else:
-        k = ics.k.flatten()
+        # k = ics.k.flatten()
+        print('ics.boxsize:', ics.boxsize)
+        print('ics.N:', ics.N)
+        print('N:', N)
+        print('boxsize:', boxsize)
+    # Resample k as we may be using a subregion
+    k = fft_sample_spacing(delta_x.shape[0], boxsize).flatten()
+    
     k[k == 0.] = (2. * np.pi) / boxsize
 
     # Interpolate/extrapolate the bias to the 3D grid

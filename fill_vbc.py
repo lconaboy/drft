@@ -1,14 +1,14 @@
-import grafic_tools as gt
 import numpy as np
+from drft import load_snapshot
 
 levelmin = 8
 levelmax = 16
-path = '/mnt/lustre/projects/astro/general/lc589/bd/tiny_zoom/ics/unbiased/'
-base = gt.load_snapshot(path, levelmin, 'vbc')
+path = './'
+base = load_snapshot(path, levelmin, 'vbc')
 vbc = base.load_box()
 
 for level in range(levelmin+1, levelmax+1):
-    cur = gt.load_snapshot(path, level, 'deltab')
+    cur = load_snapshot(path, level, 'deltab')
     off = (np.array(cur.xoff) / base.dx).astype(int)
     ex = (np.array(cur.n) / 2 ** (level - levelmin)).astype(int)
 
@@ -18,8 +18,8 @@ for level in range(levelmin+1, levelmax+1):
 
     print(cur.xoff, cur.n, base.dx, off, ex)
     cur_vbc = np.full(cur.n, av_vbc)
-    # cur.write_field(cur_vbc, 'vbc')
+    cur.write_field(cur_vbc, 'vbc')
 
 for level in range(levelmin+1, levelmax+1):
-    cur = gt.load_snapshot(path, level, 'vbc')
+    cur = load_snapshot(path, level, 'vbc')
     cur.plot_slice(0)

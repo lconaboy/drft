@@ -32,7 +32,7 @@ def main(path, level, field, cmap='viridis', vlim=None):
     cb = fig.colorbar(im, cax=cax,orientation='horizontal')
     cb.ax.title.set_color('k')
     # cbar.ax.tick_params(axis='x',colors='Black')
-    cb.ax.set_title(field)
+    cb.ax.set_title(field.replace('_', '\_'))
 
     
     # This is the main work

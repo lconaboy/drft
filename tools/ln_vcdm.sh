@@ -25,7 +25,7 @@ read -p "Are you in the directory which will contain level dirs? (y/n) " ans
 
 fields=("ic_poscx" "ic_poscy" "ic_poscz" "ic_velcx" "ic_velcy" "ic_velcz" "ic_deltab" "ic_refmap" "ic_pvar_00001")
 xyz=("x" "y" "z")
-levels=$(seq 8 13)
+levels=$(seq 8 16)
 
 if [[ $ans == "y" ]]; then
     for level in $levels; do

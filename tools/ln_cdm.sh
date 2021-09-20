@@ -14,9 +14,9 @@ read -p "Are you in the directory containing level dirs? (y/n) " ans
 fields=("ic_poscx" "ic_poscy" "ic_poscz" "ic_velcx" "ic_velcy" "ic_velcz" "ic_refmap" "ic_pvar_00001")
 # fields=("ic_pvar_00001")
 # levels=("7")
-levels=$(seq 8 13)
+levels=$(seq 9 16)
 
-# ln -s ../$base/level_009/ level_009
+ln -s ../$base/level_008/ level_008
 
 if [[ $ans == "y" ]]; then
     for level in $levels; do

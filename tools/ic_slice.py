@@ -4,24 +4,25 @@ import matplotlib.pyplot as plt
 import grafic_tools as grafic
 from mpl_toolkits.axes_grid1 import ImageGrid
 
-level = 14
+level = 16
 # path1 = '/snap7/scratch/dp004/dc-cona1/bd/ics_new/halo7248_972/halo7248_972/'
 # path2 = path1 + 'level_{0:03d}/ics_ramses_vbc/'.format(level)
 # field = 'vbc'
-path1 = '/cosma6/data/dp004/dc-cona1/bd/ics/halo7248_972/halo7248_972/'
-path2 = '/cosma6/data/dp004/dc-cona1/bd/ics/halo7248_972/halo7248_972_b/'
-field = 'deltab'
+path1 = '/mnt/lustre/projects/astro/general/lc589/bd/tiny_zoom/ics/REGION_001/HYDRO_256_65536/unbiased'
+path2 = '/mnt/lustre/projects/astro/general/lc589/bd/tiny_zoom/ics/REGION_001/HYDRO_256_65536/unbiased'
+field1 = 'vbc'
+field2 = 'vbc'
 
 # Get data
-dat1 = grafic.load_snapshot(path1, level, field).plot_slice(nslc=3, ret_im=True)
-dat2 = grafic.load_snapshot(path2, level, field).plot_slice(nslc=3, ret_im=True)
+dat1 = grafic.load_snapshot(path1, level, field1).plot_slice(nslc=50, ret_im=True)
+dat2 = grafic.load_snapshot(path2, level, field2).plot_slice(nslc=3, ret_im=True)
 dat = [dat1, dat2]
 ttl = ['unbiased', 'biased']
 vmin = np.min(dat)
 vmax = np.max(dat)
 
 # Hacky
-l = 100.*972./16384.
+l = 100.*522./65536.
 ex = (50. - l, 50. + l, 50.-l, 50.+l)
 
 fig = plt.figure(figsize=(12, 9))
@@ -51,5 +52,5 @@ ax.cax.toggle_label(True)
 
 plt.tight_layout(rect=[0,0,0.9,1])
 # plt.tight_layout()
-plt.savefig(field+'_'+str(level)+'_slice_comp.pdf', bbox_inches='tight')
+plt.savefig(field1+'_'+str(level)+'_slice_comp.pdf', bbox_inches='tight')
 plt.show()

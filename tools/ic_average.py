@@ -45,6 +45,7 @@ def get_regions(d_tol=0.001, n_res=20):
     
 
 def downsample(path, level, field, level_s):
+<<<<<<< HEAD
     assert level_s <= level, 'Sampling level must be smaller than IC level'
 
     ics = grafic.load_snapshot(path, level, field)
@@ -63,6 +64,28 @@ def downsample(path, level, field, level_s):
             for jj in range(n_s):
                 for kk in range(n_s):
                     tmp = np.zeros(s**3)
+=======
+    assert level_s <= level, 'Sampling level must be smaller than or equal to IC level'
+
+    ics = grafic.load_snapshot(path, level, field)
+    n = 2**level      # number of cells in original cube
+    n_s = 2**level_s  # number of cells in downsampled cube
+    s = 2**(level - level_s)  # ratio of original to downsampled cells
+
+    # Storage for the downsampled cube
+    box_s = np.zeros((n_s, n_s, n_s), dtype=np.float32)
+
+    box = ics.load_box()
+
+    if (level == level_s):
+        print('-- level == level_s, doing no downsampling')
+        return box
+    
+    for ii in range(n_s):
+        for jj in range(n_s):
+            for kk in range(n_s):
+                tmp = np.zeros(s**3)
+>>>>>>> origin/master
                 
                     # Check whether we've looped around
                     iis = np.arange(ii*s, ii*s + s)
@@ -94,10 +117,9 @@ def get_cen(pp, n):
 # level = 7
 # level_s = 4  # level to downsample to, i.e. n_samp = 2**level_s
 
-if __name__ == '__main__':
-    path = './'
-    level = 8
-    level_s = 7
+path = './'
+level = 7
+level_s = 5
 
     ics = grafic.load_snapshot(path, level, 'deltab')
     

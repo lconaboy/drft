@@ -435,7 +435,7 @@ class Snapshot:
     @property
     def level_dir(self):
         # return '{0}/level_{1:03d}/'.format(self.path, self.level)
-        return os.path.join(self.path, 'level_{1:03d}'.format(self.level))
+        return os.path.join(self.path, 'level_{0:03d}'.format(self.level))
 
 
     def field_exists_on_disk(self, field):

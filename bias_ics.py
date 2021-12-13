@@ -94,7 +94,8 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=Fal
         # or non-periodic.
         # per = (level == levelmin)
         
-        if not os.path.isfile(path+"level_{0:03d}/ic_vbc".format(level)):
+        if not os.path.isfile(
+                os.path.join(path, "level_{0:03d}/ic_vbc".format(level))):
             # vbc_utils.msg(rank, 'Deriving ic_vbc.', verbose)
             # grafic.derive_vbc(path, level, per)
             raise Exception("'ic_vbc' doesn't exist. Run cic_vel.f90.")
@@ -105,7 +106,8 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=Fal
             raise Exception("'lin' mode is not currently supported.")
     else:
         # Wait for rank 0 to write the velb, velc and vbc fields
-        while not os.path.isfile(path+"level_{0:03d}/ic_vbc".format(level)):
+        while not os.path.isfile(
+                os.path.join(path, "level_{0:03d}/ic_vbc".format(level))):
             time.sleep(1.0e-3)
 
     if lin:
@@ -122,6 +124,8 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=Fal
 
     # Padding around the patches
     pad = 8
+    # print('---- testing with extra padding')
+    # pad = 16
 
     # Calculate the number of cubes for each dimension, we want an
     # equal number of cubes in each dimension and this is most easily
@@ -148,6 +152,10 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=Fal
     
     # dx is the same for every cube, so this is broadcast to each processor
     dx = comm.bcast(dx, root=0)
+
+    # Initialise \delta sums for correction
+    deltab_tot = 0
+    deltab_b_tot = 0
 
     # Iterate over patch positions in parallel
     # dest = {}
@@ -260,6 +268,18 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=Fal
             velbz = ics[3].load_patch(origin, dx_eps)
             vbc = ics[4].load_patch(origin, dx_eps)
 
+            # TESTING
+            # vbc_utils.vbc_patch_dist(vbc, origin)
+            # continue
+            
+            # Add to \delta sum for correction
+            x_shape, y_shape, z_shape = delta.shape
+            deltab_tmp = np.sum(delta[0 + pad:x_shape - pad,
+                                      0 + pad:y_shape - pad,
+                                      0 + pad:z_shape - pad] + 1.)
+            
+            deltab_tot = deltab_tot + deltab_tmp
+            
             # Compute the bias
             vbc_utils.msg(rank, "Computing bias.", verbose)
             # Commented the below for testing
@@ -273,6 +293,14 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=Fal
             velbz_biased = vbc_utils.apply_density_bias(ics[3], k, b_vb, velbz.shape[0], delta_x=velbz)
 
             # print('deltab before', delta_biased)
+            
+
+            # Add to \delta_biased sum for correction
+            deltab_b_tmp = np.sum(delta_biased[0 + pad:x_shape - pad,
+                                               0 + pad:y_shape - pad,
+                                               0 + pad:z_shape - pad] + 1.)
+            deltab_b_tot = deltab_b_tot + deltab_b_tmp
+            
             # Remove the padded region
             x_shape, y_shape, z_shape = delta_biased.shape
             delta_biased = delta_biased[0 + pad:x_shape - pad,
@@ -309,8 +337,7 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=Fal
                                   Patch(patch, dx, velbx_biased, 'velbx'),
                                   Patch(patch, dx, velby_biased, 'velby'),
                                   Patch(patch, dx, velbz_biased, 'velbz')]
-
-
+            
             for patch in biased_patches:
                 with open(r"patches/level_{0:03d}/patch_{1}{2:03d}.p".format(level, patch.field, rank), "ab") as f:
                     pickle.dump(patch, f)
@@ -333,8 +360,18 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=Fal
     barrier()
     # finalize()
 
+    # Gather all of the \delta sums and reduce
+    deltab_tot_sum = comm.reduce(deltab_tot, op=MPI.SUM, root=0)
+    deltab_b_tot_sum = comm.reduce(deltab_b_tot, op=MPI.SUM, root=0)
+    
     # Then write
     if rank == 0:
+        # Save the correction as a small text file, use like:
+        # \deltab_biased + correction = \deltab (what about the +1s?)
+        np.savetxt("./patches/level_{0:03d}/"
+                   "deltab_correction.txt".format(level),
+                   np.array([deltab_tot_sum - deltab_b_tot_sum]))
+        
         vbc_utils.msg(rank, 'Writing patches', verbose)
         write(path, level, lin, verbose, ret_vbc, comm=comm)
 
@@ -383,13 +420,17 @@ def write(path, level, lin, verbose=True, ret_vbc=False, comm=None):
 
         # Loop over fields
         for field in fields:
-            # Get all of the patches for each field name
-            fns = glob.glob('./patches/level_{0:03d}/*'.format(level) + field + '*')
+            # Get all of the patches for each field name, assumes that
+            # patches will make up the entirety of the pickled objects
+            # in the patches directory
+            fns = glob.glob('./patches/level_{0:03d}/*{1}*.p'.format(level,
+                                                                     field))
             fns.sort()
             size = len(fns)
             
             # Write new ICs
-            output_field = np.zeros((ics[0].n[1], ics[0].n[0], ics[0].n[2]))
+            output_field = np.zeros((ics[0].n[1], ics[0].n[0], ics[0].n[2]),
+                                    dtype=np.float32)
 
             dest = []
             for i, fn in enumerate(fns):
@@ -401,6 +442,21 @@ def write(path, level, lin, verbose=True, ret_vbc=False, comm=None):
                             dest.append(pickle.load(f))
                         except EOFError:
                             break
+
+            # Load up correction if we're working on the deltab field
+            # and if we have a correction
+            if field == 'deltab':
+                try:
+                    c_fn = './patches/level_{0:03d}/deltab_correction.txt'
+                    correction = np.loadtxt(c_fn.format(level))
+                    # Calculate each cell's contribution to the correction
+                    correction = np.float64(correction) / (ics[0].n[1] *
+                                                           ics[0].n[0] *
+                                                           ics[0].n[2])
+                except:
+                    correction = 0.0
+
+                vbc_utils.msg(rank, 'Correcting deltab by {0:.3e}/cell'.format(correction))
 
             # Move from the list of patches to an array
             for item in dest:
@@ -414,14 +470,27 @@ def write(path, level, lin, verbose=True, ret_vbc=False, comm=None):
                 y_min, y_max = (int((patch[1]) - (dx[1] / 2.)), int((patch[1]) + (dx[1] / 2.)))
                 z_min, z_max = (int((patch[2]) - (dx[2] / 2.)), int((patch[2]) + (dx[2] / 2.)))
 
+                # Apply the correction -- since it is going to be
+                # quite small, we have to cast the biased array to
+                # float64 then apply the correction, then revert to
+                # float32 for output. Doing it piecemeal to avoid a
+                # sudden jump in memory usage.
+                if field == 'deltab':
+                    print('TESTING:')
+                    print('biased.sum() before correction', biased.sum())
+                    biased = biased.astype(np.float64) + correction
+                    print('biased.sum() after correction', biased.sum())
+                    biased = biased.astype(np.float32)
+                    print('biased.sum() after downcasting', biased.sum())
+
                 # Place into output
                 output_field[y_min:y_max, x_min:x_max, z_min:z_max] = biased
 
             # Write the initial conditions
-            ics_dir = "{0}/ics_ramses_vbc/".format(ics[0].level_dir)
+            ics_dir = os.path.join(ics[0].level_dir, "ics_ramses_vbc/")
             if not os.path.isdir(ics_dir):
                 os.mkdir(ics_dir)
-            out_dir = "{0}/level_{1:03d}/".format(ics_dir, level)
+            out_dir = os.path.join(ics_dir, "level_{0:03d}/".format(level))
             if not os.path.isdir(out_dir):
                 os.mkdir(out_dir)
 
@@ -429,6 +498,12 @@ def write(path, level, lin, verbose=True, ret_vbc=False, comm=None):
             ics[0].write_field(output_field, field, out_dir=out_dir)
             vbc_utils.msg(rank, 'Wrote {0} field.'.format(field), verbose)
 
+            # TESTING
+            # if field == 'deltab':
+            #     ics[0].write_field(output_field+correction,
+            #                        'deltab_corrected', out_dir=out_dir)
+
+            
         # Remove patches/level_xxx dir
         # vbc_utils.clean(level)
         # vbc_utils.msg(rank, 'Cleaned up.')
@@ -485,9 +560,10 @@ if __name__ == '__main__':
         else:
             raise Exception("mode is {0} -- should be 'work' or 'write'.".format(mode))
 
-    except Exception as e:
-        # Catch excpetions
+    except:
+        # Catch exceptions
         from mpi4py import MPI
-        print(e, flush=True)
+        
+        print(traceback.format_exc(), flush=True)
         MPI.COMM_WORLD.Abort(96)
 

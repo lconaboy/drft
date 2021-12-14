@@ -77,6 +77,9 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=Fal
         
     #mpi.msg("Loading initial conditions")
     vbc_utils.msg(rank, "Loading initial conditions.", verbose)
+
+    # Is this levelmin?
+    blm = level == levelmin
     
     if rank == 0:        
         # First, make root patches dir if it doesn't exist
@@ -145,6 +148,9 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=Fal
 
         cubes, dx = vbc_utils.cube_positions(ics[0], ncubes, ics[0].N)
         cubes = np.array(cubes)
+        if blm:
+            # This is in lieu of doing some decent load balancing
+            np.random.shuffle(cubes)
         # Split the cubes into chunks that can be scattered to each processor 
         chunks = np.array_split(cubes, size)
     else:
@@ -152,6 +158,24 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=Fal
     
     # dx is the same for every cube, so this is broadcast to each processor
     dx = comm.bcast(dx, root=0)
+    
+    dx_eps = dx + float(2 * pad)
+    # Convert dx_eps to int
+    dx_eps = dx_eps.astype(np.int32)
+    assert(dx_eps[0] == dx_eps[1] and dx_eps[0] == dx_eps[2])
+    
+    # We know kmin and kmax now that we have calculated the size of the cubes
+    kmin = 2. * np.pi / ics[0].boxsize
+    kmax = dx_eps[0] * kmin / 2.
+
+    # extend the range slightly
+    kmin *= 0.99 
+    kmax *= 1.01
+    # if kmin < 0.1: kmin = 0.1  # Not much point solving below this
+    
+
+    print('kmin', kmin, 'kmax', kmax)
+    
 
     # Initialise \delta sums for correction
     deltab_tot = 0
@@ -173,10 +197,6 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=Fal
             dx = dx.astype(np.float32)
 
             origin = np.array(patch - dx / 2. - pad, dtype=np.int64)
-            dx_eps = dx + float(2 * pad)
-
-            # Convert dx_eps to int
-            dx_eps = dx_eps.astype(np.int32)
 
             # Initialise
             deltab = None
@@ -240,19 +260,28 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=Fal
     else:
         # For the other method, we only bias the baryon field
         # (including the velocity fields)
+
+        # For the coarsest level, we bias a small patch around the centre
+        rpatch = (2.5 / ics[0].cosmo['h']) ** 2.
+        cpatch = np.array([0.5, 0.5, 0.5]) * ics[0].boxsize * ics[0].cosmo['h']
         for i, patch in enumerate(patches):
             # Always print this
             vbc_utils.msg(rank, '{0}/{1}'.format(i+1, len(patches)))
-
+            
             # Convert dx to float
             dx = dx.astype(np.float32)
-
             origin = np.array(patch - dx / 2. - pad, dtype=np.int64)
-            dx_eps = dx + float(2 * pad)
 
-            # Convert dx_eps to int
-            dx_eps = dx_eps.astype(np.int32)
-
+            # Check to see whether we need to bias this patch. This is
+            # only for the case of levelmin, where the patch is within
+            # a sphere of 2.5 Mpc/h centred on the zoom region.
+            bpatch = True
+            if blm:
+                print('pos', origin * ics[0].dx, 'cpatch', cpatch)
+                _r = np.sum(((origin * ics[0].dx) - cpatch) ** 2.)
+                if _r > rpatch:
+                    bpatch = False
+            
             # Initialise
             delta = None
             velbx = None
@@ -279,22 +308,42 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=Fal
                                       0 + pad:z_shape - pad] + 1.)
             
             deltab_tot = deltab_tot + deltab_tmp
+
+            if bpatch:
+                # Compute the bias
+                vbc_utils.msg(rank, "Computing bias.", verbose)
+                # Commented the below for testing
+                k, b_c, b_b, b_vc, b_vb = vbc_utils.compute_bias(ics[4], vbc,
+                                                                 kmin=kmin,
+                                                                 kmax=kmax,
+                                                                 n=-30)
+
+                # Convolve with field
+                vbc_utils.msg(rank, "Performing convolution.", verbose)
+                delta_biased = vbc_utils.apply_density_bias(ics[0], k, b_b,
+                                                            delta.shape[0],
+                                                            delta_x=delta)
+                velbx_biased = vbc_utils.apply_density_bias(ics[1], k, b_vb,
+                                                            velbx.shape[0],
+                                                            delta_x=velbx)
+                velby_biased = vbc_utils.apply_density_bias(ics[2], k, b_vb,
+                                                            velby.shape[0],
+                                                            delta_x=velby)
+                velbz_biased = vbc_utils.apply_density_bias(ics[3], k, b_vb,
+                                                            velbz.shape[0],
+                                                            delta_x=velbz)
+
+                # print('deltab before', delta_biased)
             
-            # Compute the bias
-            vbc_utils.msg(rank, "Computing bias.", verbose)
-            # Commented the below for testing
-            k, b_c, b_b, b_vc, b_vb = vbc_utils.compute_bias(ics[4], vbc)
+            else:
+                vbc_utils.msg(rank, "Patch outside centre, skipping bias.",
+                              verbose)
+                delta_biased = delta
+                velbx_biased = velbx
+                velby_biased = velby
+                velbz_biased = velbz
 
-            # Convolve with field
-            vbc_utils.msg(rank, "Performing convolution.", verbose)
-            delta_biased = vbc_utils.apply_density_bias(ics[0], k, b_b, delta.shape[0], delta_x=delta)
-            velbx_biased = vbc_utils.apply_density_bias(ics[1], k, b_vb, velbx.shape[0], delta_x=velbx)
-            velby_biased = vbc_utils.apply_density_bias(ics[2], k, b_vb, velby.shape[0], delta_x=velby)
-            velbz_biased = vbc_utils.apply_density_bias(ics[3], k, b_vb, velbz.shape[0], delta_x=velbz)
-
-            # print('deltab before', delta_biased)
-            
-
+                
             # Add to \delta_biased sum for correction
             deltab_b_tmp = np.sum(delta_biased[0 + pad:x_shape - pad,
                                                0 + pad:y_shape - pad,
@@ -524,7 +573,7 @@ if __name__ == '__main__':
 
     if len(sys.argv) < 4:
         print('Usage: [mpiexec] python bias_ics.py </path/to/ics/ (str)> '
-              '<level (int)> <patch size (float)> <mode("work" or "write")>\n'
+              '<level (int)> <patch size (float)> <levelmin (int)> <mode("work" or "write")>\n'
               '[<lin (bool)> <verbose (bool)>]', flush=True)
         sys.exit()
 

@@ -44,10 +44,11 @@ def yt_vbc(unbiased_path, ic_path):
 
     u = 'km/s'
     vbc = vbc_calc(ad, u)
+    print('min/max/avg', vbc.min(), vbc.max(), vbc.mean())
     s.write_field(vbc, 'vbc')
     
-    # vmin = vbc.min()
-    # vmax = vbc.max()
+    vmin = vbc.min()
+    vmax = vbc.max()
     # plot_vbc_slices(vbc, levelmin, vmin, vmax)
     
     # Now do the other levels. To find out the actual levelmin we
@@ -62,6 +63,7 @@ def yt_vbc(unbiased_path, ic_path):
             ad = ds.covering_grid(ilevel-levelmin, left_edge=left_edge,
                                   dims=dims)
             vbc = vbc_calc(ad, u)
+            # print('min/max/avg', vbc.min(), vbc.max(), vbc.mean())
             s.write_field(vbc, 'vbc')
 
             # plot_vbc_slices(vbc, ilevel, vmin, vmax)
@@ -80,23 +82,28 @@ def plot_vbc_slices(vbc, ilevel, vmin=None, vmax=None):
                    vmin=vmin, vmax=vmax)                   
 
     
-# def
-# # Now do grafic
-# vbc = np.zeros(ds.domain_dimensions, dtype=np.float32)
+def grafic_vbc(ic_path, levelmin, levelmax):
+    for ilevel in range(levelmin, levelmax+1):
+        s = load_snapshot(ic_path, ilevel, 'deltab')
+        vbc = np.zeros(s.n, dtype=np.float32)
 
-# for i in 'xyz':
-#     vbc += (load_snapshot('./', 7, 'velb'+i).load_box() -
-#             load_snapshot('./', 7, 'velc'+i).load_box()) ** 2.
+        for i in 'xyz':
+            vbc += (load_snapshot('./', ilevel, 'velb'+i).load_box() -
+                    load_snapshot('./', ilevel, 'velc'+i).load_box()) ** 2.
 
-# vbc = np.sqrt(vbc)
-# for i in range(vbc.shape[2]):
-#     plt.imsave(f'vbc{i}.png', vbc[:, :, i], vmin=vmin, vmax=vmax)
+        vbc = np.sqrt(vbc)
+        # print('min/max/avg', vbc.min(), vbc.max(), vbc.mean())
+        # for i in range(vbc.shape[2]):
+        #     plt.imsave(f'grafic_vbc_{ilevel}_{i}.png', vbc[:, :, i], vmin=0., vmax=vbc.max())
 
-# s.write_field(vbc, 'vbc')
+    # s.write_field(vbc, 'vbc')
 
 
 if __name__ == '__main__':
     unbiased_path = sys.argv[1]
     ic_path = sys.argv[2]
+    levelmin = int(sys.argv[3])
+    levelmax = int(sys.argv[4])
 
     yt_vbc(unbiased_path, ic_path)
+    grafic_vbc(unbiased_path, levelmin, levelmax)

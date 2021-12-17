@@ -2,6 +2,7 @@
 Utility functions to include drift velocity in grafIC ics by computing/convolving density
 power spectrum k dependent bias. Contains routines to run CICsASS
 """
+import sys
 import numpy as np
 from py_vbc import run_pyvbc
 
@@ -60,7 +61,7 @@ def vbc_patch_dist(vbc_field, origin):
     
 def msg(rank, s, verbose=True):
     if verbose:
-        print('[rank {0}]: {1}'.format(rank, s), flush=True)
+        print('[rank {0:03d}]: {1}'.format(rank, s), flush=True)
     else:
         return
 
@@ -82,7 +83,7 @@ def apply_density_bias(ics, k_bias, b, N, delta_x=None):
     shape0 = (shape[0], shape[0], shape[0])
 
     boxsize = float(ics.boxsize) * \
-        (float(N) / float(ics.N))
+        (float(N) / float(ics.N))  # this boxsize is the reduced one
 
     # print "boxsize = ", boxsize, delta_x.shape[0]
 
@@ -145,16 +146,21 @@ def apply_velocity_bias(ics, k_bias, b, N, vel=None):
 
 def compute_bias(ics, vbc, zstart=1000, kmin=0.1, kmax=10000, n=100, delta=False):
     """
-    Computes the bias to ~both~ density and velocity fields. Assumes v_bc is 
-    constant at z=zstart.
+    Computes the bias to /both/ density and velocity fields.  Assumes
+    v_bc is constant at z=zstart.
 
-    :param ics:
-        (Snapshot)
-        Snapshot object containing grafic ICs
- 
-    :param vbc:
-        (array)
-        Array containing the v_bc (i.e. |v_b - v_c|) field.
+    :param ics: (Snapshot) Snapshot object containing grafic ICs
+
+    :param vbc: (array) Array containing the v_bc (i.e. |v_b - v_c|)
+        field.
+
+    :param zstart: float, redshift of recombination
+    :param kmin: float, minimum k-value to solve for in py_vbc
+        (Mpc^-1)
+    :param kmax: float, maximum k-value to solve for in py_vbc
+        (Mpc^-1)
+    :param n: int, number of k-values in total if positive, ~number per
+              log10(k) if negative
     """
     # Compute size of grid and boxsize
     N = vbc.shape[0]
@@ -162,19 +168,29 @@ def compute_bias(ics, vbc, zstart=1000, kmin=0.1, kmax=10000, n=100, delta=False
 
     # v_bc redshifts away, so calculate the v_bc at z=zstart
     z = ics.z
-    zstart=1000
+    # zstart=1000
     
     # LC - switched to the median instead, as the rms was giving too
     # extreme values, particularly near the edge in non-periodic
     # interpolated vbc fields
-    
-    # rms = vbc_rms(vbc)
-    rms = vbc_med(vbc)
-    
-    rms_recom = rms * (1001./(1.0 + z))
 
-    print('vbc rms', rms)
-    print('vbc rms_recom', rms_recom)
+    # Also LC: now that I'm actually properly interpolating with yt
+    # I'll switch back to using the rms, which gives pretty much the
+    # same result as the median now
+    
+    # rms = vbc_med(vbc)
+    rms = vbc_rms(vbc)
+    rms_recom = rms * (1. + zstart) / (1. + z)
+
+    print(f'            v_bc rms {rms:.2f} km/s recom {rms_recom:.2f} km/s')
+    
+    # Calculate how many samples we need for the given per log10(k)
+    if (n < 0):
+        dlk = np.log10(kmax) - np.log10(kmin)
+        n = np.int(np.ceil(np.abs(n) * dlk))
+        print('compute_bias')
+        print('kmin', kmin, 'kmax', kmax, 'dlk', dlk, 'n', n)
+        sys.exit(0)
     
     # Boxsize doesn't make a difference when calculating the power
     # spectra using py_vbc. The power spectrum tuple contains (p_c, p_b, p_vc,

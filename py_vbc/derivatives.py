@@ -1,9 +1,10 @@
 import numpy as np
+# import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
 
 from py_vbc.constants import *
 from py_vbc.utils import hubble
-from py_vbc.interpolations import interpolate_tf, interpolate_recfast
+from py_vbc.interpolations import interpolate_tf, interpolate_tf2d, interpolate_recfast
     
 """
 TODO
@@ -50,20 +51,20 @@ def set_ics(k, zstart, dz):
     delta_c_dot = (dtf_c/tf_c)*H*(1+zstart)*delta_c
     delta_b_dot = (dtf_b/tf_b)*H*(1+zstart)*delta_b
 
-    # These ICs seem to make more sense
-    # k2 = k**2
-    # aH = H/(1 + zstart) 
-    # delta_c = tf_c * k2
-    # delta_b = tf_b * k2
-    # delta_c_dot = tf_vc * aH * k
-    # delta_b_dot = tf_vb * aH * k
-
     # Assume that initially temperature perturbations are coupled to
     # radiation perturbations, this is not strictly a good guess as we
     # are looking at zstart < 1000
     delta_g = (tf_g/tf_c)*delta_c
     delta_g_dot = (dtf_g/tf_g)*H*(1+zstart)*delta_g
-    delta_t = delta_g*(1.25 - T/Tcmb_z) + (T/Tcmb_z)*(t_gamma/xe)*((2.0/3.0)*delta_b_dot - 0.25*delta_g_dot)/(1+zstart)**4
+
+    
+    astart= 1 / (1 + zstart)
+    Tr = T / Tcmb_z
+    delta_t = Tr * (
+        delta_g * (1.25*Tr - 1) -
+        (t_gamma * astart**4 / xe) * 
+        (0.25*delta_g_dot - 2.*delta_b_dot/3.))  # d(delta_T - delta_Tg) = 0
+
     # Store IC values in array y
     y = np.zeros(shape=(k.shape[0], 10))
 
@@ -176,6 +177,12 @@ def derivs(z, y, k, T_spline, xe_spline, vbc, zstart):
     T = T_spline(z)
     xe = xe_spline(z)
 
+    # Get photon density fluctuations over CDM fluctuations (this is
+    # how the ICs are defined)
+    # g = g_spline(k, z)
+    # c = c_spline(k, z)
+    # gc = g / c
+    
     yhe = 0.25
     fhe = 0.25*yhe/((1.0-yhe) + 0.25*yhe)
     
@@ -184,7 +191,9 @@ def derivs(z, y, k, T_spline, xe_spline, vbc, zstart):
     alpha = 1.5*H**2*o_c
     beta = 1.5*H**2*o_b
     tau = (boltzk*T/(mub*mproton*mpctocm**2)) * k**2 * z1**2 
-    gamma = (xe/t_gamma)*(Tcmb/T)*(z1**5)
+    # gamma = (xe/t_gamma)*(z1**5)
+    gamma = (xe/t_gamma)*(z1**4)  # LC was the a-dependence overestimated?
+    Tr = (Tcmb/T)
     eta = 1.0 + fhe +xe
     
     # dy contains equations for delta_c_dot, theta_c_dot, delta_b_dot,
@@ -212,17 +221,33 @@ def derivs(z, y, k, T_spline, xe_spline, vbc, zstart):
     # dy[deltat+imag] = -mu*y[deltat+real] - (2.0/3.0)*y[deltab+velimag] - gamma*y[deltat+imag]/eta
     # dy[deltat+imag] = -mu*y[deltat+real] - (2.0/3.0)*(dy[deltab+imag] - mu*y[deltab+real]) - gamma*y[deltat+imag]
 
+    # Naoz+ (2005) say this is only valid for z<=200, but Ahn showed
+    # that actually its fine for z < 1000
     dy[deltat+real] = (2.0/3.0)*dy[deltab+real] - gamma*y[deltat+real]
     dy[deltat+imag] = (2.0/3.0)*dy[deltab+imag] - gamma*y[deltat+imag]
 
+    # Proper set for z > 200 (i.e. Naoz+ (2005))
+    # dy[deltat+real] = (2.0/3.0)*dy[deltab+real] + gamma*(gc * (1.25*Tr - 1) -
+    #                                                      Tr*y[deltat+real])
+    # dy[deltat+imag] = (2.0/3.0)*dy[deltab+imag] + gamma*(gc * (1.25*Tr - 1) -
+    #                                                      Tr*y[deltat+imag])
+
+    # dy[deltat+real] = (2.0/3.0)*dy[deltab+real] + gamma*(g * (1.25*Tr - 1) -
+    #                                                      Tr*y[deltat+real])
+    # dy[deltat+imag] = (2.0/3.0)*dy[deltab+imag] + gamma*(g * (1.25*Tr - 1) -
+    #                                                      Tr*y[deltat+imag])
+
     # Convert dy from time to redshift derivative
-    dy /= -H*z1
+    dy /= (-H*z1)
     
     return dy
 
 
 def calc_derivs(k, vbc, zstart, zend, dz, verbose):
     T_spline, xe_spline = interpolate_recfast()
+    # g_spline = interpolate_tf2d('g', zs)
+    # c_spline = interpolate_tf2d('c', zs)
+    
     y0 = set_ics(k, zstart, dz)
     y = np.zeros(shape=y0.shape)
     nk = y0.shape[0]

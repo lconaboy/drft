@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.interpolate import interp1d
+from scipy.interpolate import interp1d, interp2d
 
 from py_vbc.constants import *
 
@@ -76,6 +76,49 @@ def interpolate_tf(flag, z, dz=None):
 
         else:
             return tfz_spline
+
+
+def interpolate_tf2d(flag, zs):
+    """Reads in CAMB transfer functions at z={zs} and interpolates wrt
+    to k and z.  Returned spline is a function f(k, z)
+
+    :param flag: (str) 'c' for dark matter, 'b' for baryons, 'g' for
+        radiation, 't' for total
+    :param zs: (array) redshifts to interpolate TFs at
+
+    :returns: tfz_spline -- the spline of the TF for k and z
+
+    :rtype: splines, which are used by supplying them with a a range
+            of x-values like y_interp = spline(x)
+    """
+
+    assert flag in ['c', 'b', 'g', 't', 'vb', 'vc'], 'Flag should be either "c", "vc", "b", "vb", "g" or "t".'
+    
+    # Dict to convert flag to a TF index
+    i_flag = {'c':1, 'b':2, 'g':3, 't':6, 'vc':10, 'vb':11}
+
+    fnz = tf_base.format(camb_base, zs[0])
+    tfz = np.loadtxt(fnz)
+    k = tfz[:, 0]
+    kh = k * hconst  # convert from h/Mpc to 1/Mpc
+    # Set up array to interpolate over
+    nz = len(zs)
+    nk = tfz.shape[0]
+    tfkz = np.zeros((nz, nk))
+
+    for i, z in enumerate(zs):
+        fnz = tf_base.format(camb_base, z)
+        tfz = np.loadtxt(fnz)
+        tfkz[i, :] = tfz[:, i_flag[flag]]        
+    
+    # Convert from k/h to k
+    # k = tfz[:, 0]
+    # kh = k*hconst
+    # tfz_spline = interp1d(kh, tfz[:, i_flag[flag]], kind='cubic')
+
+    tfkz_spline = interp2d(kh, zs, tfkz, kind='cubic')
+    
+    return tfkz_spline
 
 
 def interpolate_recfast():

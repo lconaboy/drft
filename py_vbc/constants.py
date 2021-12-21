@@ -42,6 +42,8 @@ aSB = 7.56e-15            # u = aSB T^4 => Stefan's constant in ?
 u_cmb = aSB*(Tcmb**4)     # energy stored CMB
 t_gamma = 3*lightspeed*melectron/(8*sigmat*u_cmb)  # t_gamma in s
 
+# Interpolation redshifts for photon density fluctuations, not used currently
+# zs = [1000, 900, 800, 700, 600, 500, 400, 300, 200]
 
 # Parameters (runtime, CICsASS)
 # Only a few of the commented ones are needed, and the rest are

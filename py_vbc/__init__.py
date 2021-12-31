@@ -52,7 +52,7 @@ def run_pyvbc(vbc, zstart, zend, dz, kmin=1.0, kmax=1.0e3, n=64, delta=False, ve
     """
     k = np.logspace(np.log10(kmin), np.log10(kmax), num=n)
 
-    g = calc_derivs(k, vbc, zstart, zend, dz, verbose=False)
+    g = calc_derivs(k, vbc, zstart, zend, dz, verbose=verbose)
 
     p_c, p_b, p_vc, p_vb = calc_power_spec(k, g, zstart)
 

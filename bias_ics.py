@@ -169,8 +169,8 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=Fal
     kmax = dx_eps[0] * kmin / 2.
 
     # extend the range slightly
-    kmin *= 0.99 
-    kmax *= 1.01
+    kmin = kmin / 2.
+    kmax = kmax * 2.
     # if kmin < 0.1: kmin = 0.1  # Not much point solving below this
     
 
@@ -312,12 +312,17 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=Fal
             if bpatch:
                 # Compute the bias
                 vbc_utils.msg(rank, "Computing bias.", verbose)
+                vbc_utils.msg(rank, "WARNING kmax set to 2000 Mpc^-1.", verbose)
                 # Commented the below for testing
                 k, b_c, b_b, b_vc, b_vb = vbc_utils.compute_bias(ics[4], vbc,
-                                                                 kmin=kmin,
-                                                                 kmax=kmax,
-                                                                 n=-30)
+                                                                 kmin=0.1,
+                                                                 kmax=2000.,
+                                                                 n=100)
 
+                # LC TESTTNG
+                if np.any(np.isnan(delta)):
+                    print('nans before biasing')
+                    sys.exit(1)
                 # Convolve with field
                 vbc_utils.msg(rank, "Performing convolution.", verbose)
                 delta_biased = vbc_utils.apply_density_bias(ics[0], k, b_b,
@@ -334,7 +339,13 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=Fal
                                                             delta_x=velbz)
 
                 # print('deltab before', delta_biased)
-            
+                # LC TESTTNG
+                if np.any(np.isnan(delta_biased)):
+                    print(b_b)
+                    print('nans after biasing')
+                    sys.exit(1)
+
+                
             else:
                 vbc_utils.msg(rank, "Patch outside centre, skipping bias.",
                               verbose)
@@ -371,6 +382,10 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=Fal
                                         0 + pad:y_shape - pad,
                                         0 + pad:z_shape - pad]
 
+
+            
+            
+            
             if ret_vbc:
                 vbc_patch = np.ones_like(delta_biased) * vbc_utils.vbc_rms(vbc)
 

@@ -114,11 +114,31 @@ def apply_density_bias(ics, k_bias, b, N, delta_x=None):
     f = log_interp1d(k_bias, b)
     b = f(k)
 
+
+    # print('LC testing')
+    # print(np.any(np.isnan(b)))
+    # print('LC testing before fft')
+    # print(np.any(np.isnan(delta_x)))
     delta_k = fft.fftn(delta_x)
+    # print('LC testing after fft')
+    # print(np.any(np.isnan(delta_k)))
 
+    # print('max before mult', delta_k.max())
+    # print('max b.reshape(delta_k.shape)', b.reshape(delta_k.shape).max())
+    # if b.reshape(delta_k.shape).max() > 1:
+    #     np.savetxt('k.dat', k)
+    #     np.savetxt('b.dat', b)
+    
     # Apply the bias
-    delta_k *= np.sqrt(b.reshape(delta_k.shape))
+    # delta_k *= np.sqrt(b.reshape(delta_k.shape))
+    delta_k = delta_k * np.sqrt(b.reshape(delta_k.shape))
+    print('max after mult', delta_k.max())
 
+    
+    print('LC testing after mult')
+    print(np.any(np.isnan(delta_k)))
+
+    
     # Inverse FFT to compute the realisation
 
     delta_x = fft.ifftn(delta_k).real.reshape(shape)
@@ -187,10 +207,10 @@ def compute_bias(ics, vbc, zstart=1000, kmin=0.1, kmax=10000, n=100, delta=False
     # Calculate how many samples we need for the given per log10(k)
     if (n < 0):
         dlk = np.log10(kmax) - np.log10(kmin)
-        n = np.int(np.ceil(np.abs(n) * dlk))
-        print('compute_bias')
-        print('kmin', kmin, 'kmax', kmax, 'dlk', dlk, 'n', n)
-        sys.exit(0)
+        n = max([np.int(np.ceil(np.abs(n) * dlk)), 100])
+        # print('compute_bias')
+        # print('kmin', kmin, 'kmax', kmax, 'dlk', dlk, 'n', n)
+        # sys.exit(0)
     
     # Boxsize doesn't make a difference when calculating the power
     # spectra using py_vbc. The power spectrum tuple contains (p_c, p_b, p_vc,

@@ -26,7 +26,7 @@ def interpolate_tf(flag, z, dz=None):
     
     z = int(z)
 
-    if z == 0: 
+    if (dz is None) and (z==0): 
         # Determine filename
         fn0 = tf_base.format(camb_base, 0)
 

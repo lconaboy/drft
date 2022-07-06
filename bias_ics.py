@@ -624,7 +624,7 @@ if __name__ == '__main__':
         else:
             raise Exception("mode is {0} -- should be 'work' or 'write'.".format(mode))
 
-    except:
+    except Exception:
         # Catch exceptions
         from mpi4py import MPI
         

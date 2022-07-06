@@ -124,6 +124,53 @@ def calc_power_spec(k, g, zstart):
     return p_c, p_b, p_vc, p_vb
 
 
+def calc_tf(k, g, zstart):
+    """Calculates the power spectra at z=zinit. First evolves the z=1000
+    transfer functions forward using the linear growth factors
+    calculated earlier, then converts to power spectra by using the
+    normalization constant and
+
+    P(k) propto T(k)^2 k^ns
+
+    where ns is the tilt of the power spectrum.
+
+    :param k: (array) k-values for which the growth factors were calculated
+    :param g: (array) growth factors as produced by calc_derivs(), where the 
+                      first column is for CDM perturbations and the third column
+                      is the baryon perturbations 
+    :returns: the CDM and baryon power spectra
+    :rtype: arrays
+
+    """
+    # Density transfer functions
+    tf_b_spline = interpolate_tf('b', zstart)
+    tf_c_spline = interpolate_tf('c', zstart)
+    tf_b = tf_b_spline(k)
+    tf_c = tf_c_spline(k)
+
+    # Velocity transfer functions
+    tf_vb_spline = interpolate_tf('vb', zstart)
+    tf_vc_spline = interpolate_tf('vc', zstart)
+    tf_vb = tf_vb_spline(k)
+    tf_vc = tf_vc_spline(k)
+
+    # In CICsASS the CDM TFs are used to calculate all of the power
+    # spectra -- I'm reproducing that here, but I'm not entirely
+    # convinced that's correct...
+    tf_b = tf_c
+    tf_vb = tf_vc
+
+
+    t_c = g[:, 0] * tf_c
+    t_b = g[:, 2] * tf_c
+
+    # Velocity power spectra, not normalising
+    t_vc = g[:, 5] * tf_c   # * tf_vc
+    t_vb = g[:, 6] * tf_c   # * tf_vc
+
+    return t_c, t_b, t_vc, t_vb
+
+
 def calc_delta(k, p):
     """Calculates the dimensionless power spectrum Delta^2 given a power
 spectrum P(k)

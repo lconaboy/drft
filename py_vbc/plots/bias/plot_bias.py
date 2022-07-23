@@ -32,12 +32,17 @@ ax.semilogx(k0, np.sqrt(pv[0] / p0[0]), ls=(0, (8, 2)), c='#44AA99',
             label=r'$\delta_{\sf c}$')
 ax.semilogx(k0, np.sqrt(pv[1] / p0[1]), ls=(0, (4, 2)), c='#CC6677',
             label=r'$\delta_{\sf b}$')
-# ax.text(0.05, 0.95, 'v$_{{\\sf bc,~rec}}$ = {0:.2f} km s$^{{-1}}$'.format(vr),
-#         transform=ax.transAxes, horizontalalignment='left',
-#         verticalalignment='top')
+ax.semilogx(k0, np.sqrt(pv[2] / p0[2]), ls=(0, (8, 2, 1, 2)), c='#44AA99',
+            label=r'$\theta_{\sf c}$')
+ax.semilogx(k0, np.sqrt(pv[3] / p0[3]), ls=(0, (4, 2, 1, 2)), c='#CC6677',
+            label=r'$\theta_{\sf b}$')
+
+ax.text(0.05, 0.95, 'v$_{{\\sf bc,~rec}}$ = {0:.2f} km s$^{{-1}}$'.format(vr),
+        transform=ax.transAxes, horizontalalignment='left',
+        verticalalignment='top', fontsize='small')
 ax.set_xlim([0.5, 1200])
-ax.set_ylim([0.0, 1.1])
-ax.set_ylabel('b')
+ax.set_ylim([0.0, 1.25])
+ax.set_ylabel(r'b(k, v$_{\sf bc}$)')
 ax.set_xlabel(r'k (h Mpc$^{-1}$)')
 ax.legend()
 pdf_file = f'bias_vbc_rms_{vr:.2f}'

@@ -35,7 +35,8 @@ def plot_comparison(x0, yc0, yb0, z):
 
 g_c = np.loadtxt(path+'g.dat')
 zend = 400.0
-g_pv = calc_derivs(g_c[:, 0], vbc=0.0, zstart=1000.0, zend=zend, dz=3.0)
+g_pv = calc_derivs(g_c[:, 0], vbc=0.0, zstart=1000.0, zend=zend,
+                   dz=3.0, verbose=True)
 
 plot_comparison(g_c[:, 0], g_pv[:, 0], g_pv[:, 2], z=zend)
 plt.show()

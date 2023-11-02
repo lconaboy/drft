@@ -48,14 +48,14 @@ setup described in the paper) and place them in `py_vbc/tfs/`
 ### Acknowledging
 
 If you use results produced by this package in a scientific
-publication, please cite the methodology paper Conaboy et al. (2023) [ADS][https://ui.adsabs.harvard.edu/abs/2023MNRAS.525.5479C/abstract].
+publication, please cite the methodology paper Conaboy et al. (2023) [ADS](https://ui.adsabs.harvard.edu/abs/2023MNRAS.525.5479C/abstract).
 
 
 ### References
 
 Conaboy, L., Iliev, I. T., Fialkov, A., Dixon, K. L., 
 Sullivan, D., 2023, Monthly Notices of the Royal Astronomical
-Society, 525, 5479,
+Society, 525, 5479
 
 Hahn O., Abel T., 2011, Monthly Notices of the Royal Astronomical
 Society, 415, 2101

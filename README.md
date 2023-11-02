@@ -19,7 +19,7 @@ The basic steps for running drft are:
 
 1. Compute transfer functions that have separate amplitudes for baryon
 and dark matter velocities (e.g. using
-[CAMB](https://github.com/cmbant/CAMB/), Lewis 2000)
+[CAMB](https://github.com/cmbant/CAMB/), Lewis et al. 2000)
 
 2. Use these transfer functions to generate cubic ICs using [MUSIC](https://bitbucket.org/ohahn/music/src)
 (this can be enforced by setting `force_equal_extent=yes` in the
@@ -48,10 +48,14 @@ setup described in the paper) and place them in `py_vbc/tfs/`
 ### Acknowledging
 
 If you use results produced by this package in a scientific
-publiocation, please cite the methodology paper.
+publication, please cite the methodology paper Conaboy et al. (2023) [ADS][https://ui.adsabs.harvard.edu/abs/2023MNRAS.525.5479C/abstract].
 
 
 ### References
+
+Conaboy, L., Iliev, I. T., Fialkov, A., Dixon, K. L., 
+Sullivan, D., 2023, Monthly Notices of the Royal Astronomical
+Society, 525, 5479,
 
 Hahn O., Abel T., 2011, Monthly Notices of the Royal Astronomical
 Society, 415, 2101

@@ -132,10 +132,10 @@ def apply_density_bias(ics, k_bias, b, N, delta_x=None):
     # Apply the bias
     # delta_k *= np.sqrt(b.reshape(delta_k.shape))
     delta_k = delta_k * np.sqrt(b.reshape(delta_k.shape))
-    print('max after mult', delta_k.max())
+    # print('max after mult', delta_k.max())
 
     
-    print('LC testing after mult')
+    # print('LC testing after mult')
     print(np.any(np.isnan(delta_k)))
 
     

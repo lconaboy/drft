@@ -73,7 +73,7 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=Fal
         vbc_utils.msg(rank, 'Biasing deltab and velb fields', verbose)
 
     if (ret_vbc and (rank == 0)):
-        vbc_utils.msg(rank, 'TESTING: writing vbc_patch field', verbose)
+        vbc_utils.msg(rank, 'Writing vbc_patch field', verbose)
         
     #mpi.msg("Loading initial conditions")
     vbc_utils.msg(rank, "Loading initial conditions.", verbose)
@@ -174,7 +174,7 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=Fal
     # if kmin < 0.1: kmin = 0.1  # Not much point solving below this
     
 
-    print('kmin', kmin, 'kmax', kmax)
+    # print('kmin', kmin, 'kmax', kmax)
     
 
     # Initialise \delta sums for correction
@@ -277,7 +277,6 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=Fal
             # a sphere of 2.5 Mpc/h centred on the zoom region.
             bpatch = True
             if blm:
-                print('pos', origin * ics[0].dx, 'cpatch', cpatch)
                 _r = np.sum(((origin * ics[0].dx) - cpatch) ** 2.)
                 if _r > rpatch:
                     bpatch = False
@@ -312,12 +311,12 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=Fal
             if bpatch:
                 # Compute the bias
                 vbc_utils.msg(rank, "Computing bias.", verbose)
-                vbc_utils.msg(rank, "WARNING kmax set to 2000 Mpc^-1.", verbose)
+                # vbc_utils.msg(rank, "WARNING kmax set to 2000 Mpc^-1.", verbose)
                 # Commented the below for testing
                 k, b_c, b_b, b_vc, b_vb = vbc_utils.compute_bias(ics[4], vbc,
-                                                                 kmin=0.1,
-                                                                 kmax=2000.,
-                                                                 n=100)
+                                                                 kmin=kmin,
+                                                                 kmax=kmax,
+                                                                 n=1024)
 
                 # LC TESTTNG
                 if np.any(np.isnan(delta)):
@@ -431,7 +430,8 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=Fal
     # Then write
     if rank == 0:
         # Save the correction as a small text file, use like:
-        # \deltab_biased + correction = \deltab (what about the +1s?)
+        # \deltab_biased + correction = \deltab (the +1s come out in
+        # the wash)
         np.savetxt("./patches/level_{0:03d}/"
                    "deltab_correction.txt".format(level),
                    np.array([deltab_tot_sum - deltab_b_tot_sum]))
@@ -540,12 +540,12 @@ def write(path, level, lin, verbose=True, ret_vbc=False, comm=None):
                 # float32 for output. Doing it piecemeal to avoid a
                 # sudden jump in memory usage.
                 if field == 'deltab':
-                    print('TESTING:')
-                    print('biased.sum() before correction', biased.sum())
+                    # print('TESTING:')
+                    # print('biased.sum() before correction', biased.sum())
                     biased = biased.astype(np.float64) + correction
-                    print('biased.sum() after correction', biased.sum())
+                    # print('biased.sum() after correction', biased.sum())
                     biased = biased.astype(np.float32)
-                    print('biased.sum() after downcasting', biased.sum())
+                    # print('biased.sum() after downcasting', biased.sum())
 
                 # Place into output
                 output_field[y_min:y_max, x_min:x_max, z_min:z_max] = biased

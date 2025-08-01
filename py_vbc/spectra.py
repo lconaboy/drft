@@ -66,10 +66,10 @@ def calc_norm():
     epsrel = 1.0e-6
     limit = int(1e6)
 
-    sigma_8c1 = np.sqrt(quad(lambda k: sigma(k, tf0_spline), kmin, kmid, limit=limit, epsrel=epsrel)[0])
-    sigma_8c2 = np.sqrt(quad(lambda k: sigma(k, tf0_spline), kmid, kmax, limit=limit, epsrel=epsrel)[0])
+    sigma_8c1 = quad(lambda k: sigma(k, tf0_spline), kmin, kmid, limit=limit, epsrel=epsrel)[0]
+    sigma_8c2 = quad(lambda k: sigma(k, tf0_spline), kmid, kmax, limit=limit, epsrel=epsrel)[0]
     
-    sigma_8c = sigma_8c1 + sigma_8c2
+    sigma_8c = np.sqrt(sigma_8c1 + sigma_8c2)
     
     return sigma_8/sigma_8c
 

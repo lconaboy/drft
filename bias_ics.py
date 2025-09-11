@@ -164,19 +164,15 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=Fal
     dx_eps = dx_eps.astype(np.int32)
     assert(dx_eps[0] == dx_eps[1] and dx_eps[0] == dx_eps[2])
     
-    # We know kmin and kmax now that we have calculated the size of the cubes
-    kmin = 2. * np.pi / ics[0].boxsize
-    kmax = dx_eps[0] * kmin / 2.
+    # Calculate the minimum and maximum k values from the full box,
+    # and extend the range slightly
+    kmin = np.sqrt(3) * 2. * np.pi / ics[0].boxsize
+    kmax = np.sqrt(3) * ics[0].N * kmin / 2.
+    kmin = kmin / 1.1
+    kmax = kmax * 1.1
 
-    # extend the range slightly
-    kmin = kmin / 2.
-    kmax = kmax * 2.
-    # if kmin < 0.1: kmin = 0.1  # Not much point solving below this
+    # print(f'DEBUG: {kmin=} {kmax=}')
     
-
-    # print('kmin', kmin, 'kmax', kmax)
-    
-
     # Initialise \delta sums for correction
     deltab_tot = 0
     deltab_b_tot = 0
@@ -324,24 +320,25 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=Fal
                     sys.exit(1)
                 # Convolve with field
                 vbc_utils.msg(rank, "Performing convolution.", verbose)
+                # vbc_utils.msg(rank, 'DEBUG: density')
                 delta_biased = vbc_utils.apply_density_bias(ics[0], k, b_b,
                                                             delta.shape[0],
                                                             delta_x=delta)
+                # vbc_utils.msg(rank, 'DEBUG: velbx')
                 velbx_biased = vbc_utils.apply_density_bias(ics[1], k, b_vb,
                                                             velbx.shape[0],
                                                             delta_x=velbx)
+                # vbc_utils.msg(rank, 'DEBUG: velby')
                 velby_biased = vbc_utils.apply_density_bias(ics[2], k, b_vb,
                                                             velby.shape[0],
                                                             delta_x=velby)
+                # vbc_utils.msg(rank, 'DEBUG: velbz')
                 velbz_biased = vbc_utils.apply_density_bias(ics[3], k, b_vb,
                                                             velbz.shape[0],
                                                             delta_x=velbz)
 
-                # print('deltab before', delta_biased)
-                # LC TESTTNG
                 if np.any(np.isnan(delta_biased)):
-                    print(b_b)
-                    print('nans after biasing')
+                    vbc_utils.msg(rank, 'NaNs after biasing, exiting!', True)
                     sys.exit(1)
 
                 
@@ -415,13 +412,12 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=Fal
 
             gc.collect()
 
-    del biased_patches
+    # del biased_patches
     gc.collect()
 
     vbc_utils.msg(rank, 'Done patches', verbose)
     # Wait until everyone has done patches
     barrier()
-    # finalize()
 
     # Gather all of the \delta sums and reduce
     deltab_tot_sum = comm.reduce(deltab_tot, op=MPI.SUM, root=0)

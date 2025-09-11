@@ -265,80 +265,78 @@ def set_ics_comb(k, zstart, dz):
 
     return y
 
-
-# def set_ics_comb(k, zstart, dz):    
-#     # Compute splines
-#     tf_c_spline, dtf_c_spline = interpolate_tf('c')
-#     tf_b_spline, dtf_b_spline = interpolate_tf('b')
-
-#     # Go from splines to actual values
-#     tf_c = tf_c_spline(k)
-#     tf_b = tf_b_spline(k)
-#     dtf_c = dtf_c_spline(k)
-#     dtf_b = dtf_b_spline(k)
-
-#     # Calculate value of Hubble parameter at z=zstart
-#     H = (100.0*hconst)*hubble(zstart)/mpctokm
-
-#     # ICs for the baryon overdensities and their derivatives
-#     delta_c = 1.0
-#     # delta_c = (tf_c/tf_b)*delta_b
-#     delta_b = (tf_b/tf_c)*delta_c
-#     delta_c_dot = (dtf_c/tf_c)*H*(1+zstart)*delta_c
-#     delta_b_dot = (dtf_b/tf_b)*H*(1+zstart)*delta_b
-
-#     # Store IC values in array y
-#     y = np.zeros(shape=(k.shape[0], 5), dtype=complex)
-
-#     # Assign ICs
-#     y[:, delc] = delta_c           # dark matter overdensity
-#     y[:, delc+vel] = -delta_c_dot  # time derivative of dark matter overdensity
-#     y[:, delb] = delta_b           # baryon overdensity
-#     y[:, delb+vel] = -delta_b_dot  # time derivative of baryon overdensity
-#     y[:, delt] = 0.0               # temperature fluctuations
-
-#     return y
-
-
-# Original complex differential equations as in O'Leary and McQuinn
-# (2012)
-# def derivs_comb(z, y, k, T_spline, xe_spline):
-#     from utils import hubble
-
-#     # Calculate Hubble parameter
-#     H = (100.0*hconst)*hubble(z)/mpctokm
-
-#     # Put redshift dependence into density paramters
-#     o_c = (omega_m-omega_b)/(omega_m + omega_r*(1+z))
-#     o_b = omega_b/(omega_m + omega_r*(1+z))
-
-#     # Convert vstream to Mpc to it is in the same units as k and
-#     # insert decaying dependence with redshift
-#     vbck = vstream/(((1+zstart)/(1+z))*mpctokm)
-
-#     # # Get temperature and electron fraction values
-#     # # T_spline, xe_spline = interpolate_recfast()
-#     T = T_spline(z)
-#     xe = xe_spline(z)
-
-#     # Calculate (isothermal) sound speed for that redshift
-#     cs = np.sqrt(boltzk*T/(mub*mproton))/mpctocm    
+def derivs_isothermal(z, y, k, T_spline, xe_spline, vbc, zstart):
+    from py_vbc.utils import hubble
     
-#     # dy contains the equations for delta_c_dot, theta_c_dot,
-#     # delta_b_dot, theta_b_dot, delta_t_dot
-#     dy = np.zeros(5, dtype=complex)
-#     dy[delc] = -y[delc+vel]  # Eq. (A1)
-#     dy[delc+vel] = -1.5*H**2*(o_c*y[delc] + o_b*y[delb]) - 2*H*y[delc+vel]  # Eq. (A2)
-#     dy[delb] = -vbck*k*costh*y[delb]*(1+z)*1j - y[delb+vel]  # Eq. (A3)
-#     dy[delb+vel] = (- vbck*k*costh*y[delc+vel]*(1+z)*1j - 1.5*H**2*(o_c*y[delc] + o_b*y[delb])
-#                     - 2*H*y[delb+vel] + cs**2*k**2*(1+z)**2*(y[delb] + y[delt]))  # Eq. (A4)
-#     dy[delt] = (-(2.0/3.0)*(vbck*k*costh*y[delb]*(1+z)*1j - y[delb+vel])
-#                 -(xe/t_gamma)*(Tcmb/T)*(1+z)**5*y[delt])# - vbck*k*costh*y[delt]*(1+z)*1j)  # Ahn
+    # Calculate Hubble parameter
+    H = (100.0*hconst)*hubble(z)/mpctokm
+    
+    # Put redshift dependence into density parameters
+    z1 = 1+z
+    o_m = omega_m * (z1 ** 3.)
+    f_b = omega_b / omega_m
+    f_c = 1. - f_b
+    # o_b = omega_b * (z1 ** 3.)
+    # o_c = o_m - o_b
+    o_r = omega_r * (z1 ** 4.)
+    o_mz = o_m / (o_m + o_r)
+    o_b = f_b * o_mz
+    o_c = f_c * o_mz
+    
+    # o_c = (omega_m-omega_b)/(omega_m + omega_r*z1)
+    # o_b = omega_b/(omega_m + omega_r*z1)
 
-#     # Convert dy from time to redshift derivative
-#     dy /= -H*(1+z)
- 
-#     return dy
+    # Convert vstream to Mpc to it is in the same units as k and
+    # insert decaying dependence with redshift
+    vbck = vbc/((1+zstart)/z1)/mpctokm
+
+    # Get temperature and electron fraction values
+    T = T_spline(z)
+    xe = xe_spline(z)
+
+
+    # Get photon density fluctuations over CDM fluctuations (this is
+    # how the ICs are defined)
+    # g = g_spline(k, z)
+    # c = c_spline(k, z)
+    # gc = g / c
+    
+    yhe = 0.25
+    fhe = 0.25*yhe/((1.0-yhe) + 0.25*yhe)
+    
+    # Convenience variables
+    mu = vbck*k*costh*z1
+    alpha = 1.5*H**2*o_c
+    beta = 1.5*H**2*o_b
+    tau = (boltzk*T/(mub*mproton*mpctocm**2)) * k**2 * z1**2 
+    # gamma = (xe/t_gamma)*(z1**5)
+    gamma = (xe/t_gamma)*(z1**4)  # LC was the a-dependence overestimated?
+    Tcmb_z = Tcmb * z1
+    Tr = (Tcmb_z/T)
+    eta = 1.0 + fhe +xe
+    
+    # dy contains equations for delta_c_dot, theta_c_dot, delta_b_dot,
+    # theta_b_dot, delta_t_dot split into real and imaginary parts
+    dy = np.zeros(10)
+    
+    dy[deltac+real] = -y[deltac+velreal]
+    dy[deltac+imag] = -y[deltac+velimag]
+    dy[deltac+velreal] = (- (alpha*y[deltac+real] + beta*y[deltab+real])
+                          - 2.0*H*y[deltac+velreal])
+    dy[deltac+velimag] = (- (alpha*y[deltac+imag] + beta*y[deltab+imag])
+                          - 2.0*H*y[deltac+velimag])
+    dy[deltab+real] = mu*y[deltab+imag] - y[deltab+velreal]
+    dy[deltab+imag] = -mu*y[deltab+real] - y[deltab+velimag]
+    dy[deltab+velreal] = (mu*y[deltab+velimag] - 2*H*y[deltab+velreal]
+                          - (alpha*y[deltac+real] + beta*y[deltab+real])
+                          + tau* y[deltab+real])
+    dy[deltab+velimag] = (- mu*y[deltab+velreal] - 2*H*y[deltab+velimag]
+                          - (alpha*y[deltac+imag] + beta*y[deltab+imag])
+                          + tau * y[deltab+imag])
+
+    dy /= (-H*z1)
+    
+    return dy
 
 
 def derivs(z, y, k, T_spline, xe_spline, vbc, zstart):
@@ -436,6 +434,7 @@ def derivs(z, y, k, T_spline, xe_spline, vbc, zstart):
     dy /= (-H*z1)
     
     return dy
+
 
 
 def derivs_cicsass(a, y, k, T_spline, xe_spline, vbc, zstart):
@@ -599,7 +598,7 @@ def derivs_comb(z, y, k, T_spline, xe_spline, vbc, zstart):
     return dy
 
 
-def calc_derivs(k, vbc, zstart, zend, dz, verbose, integrator='LSODA'):
+def calc_derivs(k, vbc, zstart, zend, dz, verbose, integrator='LSODA', isothermal=False):
     T_spline, xe_spline = interpolate_recfast()
     # g_spline = interpolate_tf2d('g', zs)
     # c_spline = interpolate_tf2d('c', zs)
@@ -618,8 +617,13 @@ def calc_derivs(k, vbc, zstart, zend, dz, verbose, integrator='LSODA'):
             else:
                 print('    k = {0:.3f} Mpc^-1 [{1:d}/{2:d}]'.format(ik, i+1, nk))
 
-        r = solve_ivp(fun=lambda z, y: derivs(z, y, ik, T_spline,
-                                         xe_spline, vbc, zstart),
+        if isothermal:
+            derivs_ = derivs_isothermal
+        else:
+            derivs_ = derivs
+
+        r = solve_ivp(fun=lambda z, y: derivs_(z, y, ik, T_spline,
+                                          xe_spline, vbc, zstart),
                       t_span=(zstart, zend),
                       t_eval=np.array([zend]),
                       rtol=1.0e-6, y0=y0[i, :],

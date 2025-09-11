@@ -15,7 +15,7 @@ TODO
 physically motivated, perhaps even random 
 """
 
-def run_pyvbc(vbc, zstart, zend, dz, kmin=1.0, kmax=1.0e3, n=64, delta=False, verbose=False):
+def run_pyvbc(vbc, zstart, zend, dz, kmin=1.0, kmax=1.0e3, n=64, delta=False, verbose=False, transfer=False, isothermal=False):
     """
     Runs py_vbc and returns either the power spectrum or dimensionless power
     spectrum.
@@ -50,12 +50,20 @@ def run_pyvbc(vbc, zstart, zend, dz, kmin=1.0, kmax=1.0e3, n=64, delta=False, ve
         If True, will return the dimensionless power spectrum, if False will return
         the usual power spectrum
     """
-    k = np.logspace(np.log10(kmin), np.log10(kmax), num=n)
+    # k = np.logspace(np.log10(kmin), np.log10(kmax), num=n)
+    lkmi = np.log10(kmin)
+    lkma = np.log10(kmax)
+    dlk = (lkma - lkmi) / float(n - 1.0)
+    k = 10.0 ** (np.arange(n, dtype=float) * dlk + lkmi)
 
-    g = calc_derivs(k, vbc, zstart, zend, dz, verbose=verbose)
+    g = calc_derivs(k, vbc, zstart, zend, dz, verbose=verbose, isothermal=isothermal)
 
+
+    if transfer:
+        t_c, t_b, t_vc, t_vb = calc_tf(k, g, zstart)
+        return k, (t_c, t_b, t_vc, t_vb)
+        
     p_c, p_b, p_vc, p_vb = calc_power_spec(k, g, zstart)
-
     if delta is False:
         return k, (p_c, p_b, p_vc, p_vb)
 

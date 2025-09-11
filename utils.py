@@ -85,20 +85,7 @@ def apply_density_bias(ics, k_bias, b, N, delta_x=None):
     boxsize = float(ics.boxsize) * \
         (float(N) / float(ics.N))  # this boxsize is the reduced one
 
-    # print "boxsize = ", boxsize, delta_x.shape[0]
-
-    # k = None
-    if boxsize != ics.boxsize:
-        # Resample k as we may be using a subregion
-        # k = fft_sample_spacing(delta_x.shape[0], boxsize).flatten()
-        pass
-    else:
-        # k = ics.k.flatten()
-        print('ics.boxsize:', ics.boxsize)
-        print('ics.N:', ics.N)
-        print('N:', N)
-        print('boxsize:', boxsize)
-    # Resample k as we may be using a subregion
+    # # Resample k as we may be using a subregion
     k = fft_sample_spacing(delta_x.shape[0], boxsize).flatten()
     
     k[k == 0.] = (2. * np.pi) / boxsize
@@ -107,40 +94,53 @@ def apply_density_bias(ics, k_bias, b, N, delta_x=None):
     def log_interp1d(xx, yy, kind='linear'):
         logx = np.log10(xx)
         logy = np.log10(yy)
-        lin_interp = si.InterpolatedUnivariateSpline(logx, logy)
+        
+        # The spline was returning strange results, so try with linear
+        # interpolation instead
+        # lin_interp = si.InterpolatedUnivariateSpline(logx, logy)
+        lin_interp = si.interp1d(logx, logy)
         log_interp = lambda zz: np.power(10.0, lin_interp(np.log10(zz)))
+        # print(f'DEBUG: {xx.min()=} {xx.max()=}')
+        # print(f'DEBUG: {yy.min()=} {yy.max()=}')
+        # print(f'DEBUG: {logy.min()=} {logy.max()=}')
+        # print(f'DEBUG: {logx.min()=} {logx.max()=}')
         return log_interp
 
-    f = log_interp1d(k_bias, b)
-    b = f(k)
+    # print(f'DEBUG: {k_bias.min()=} {k_bias.max()=}')
+    # print(f'DEBUG: {k.min()=} {k.max()=}')
+          
+    # print(f'DEBUG: {k_bias=} {b=}')
+    # print(f'DEBUG: ', k)
 
+    try:
+        f = log_interp1d(k_bias, b)
+        b = f(k)
+        # for k_bias_ in k_bias:
+        #     print(f'DEBUG: {k_bias_=}')
+        # for b_ in b:
+        #     print(f'DEBUG: {b_=}')
+        # for k_ in k:
+        #     print(f'DEBUG: {k_=}')
+        #     print(f'DEBUG: {f(k_)=}')
 
-    # print('LC testing')
-    # print(np.any(np.isnan(b)))
-    # print('LC testing before fft')
-    # print(np.any(np.isnan(delta_x)))
-    delta_k = fft.fftn(delta_x)
-    # print('LC testing after fft')
-    # print(np.any(np.isnan(delta_k)))
+    except:
+        print('### EXCEPTION ###')
+        for b_ in b:
+            print(f'DEBUG: {b_=}')
+        for k_bias_ in k_bias:
+            print(f'DEBUG: {k_bias_=}')
+        for k_ in k:
+            print(f'DEBUG: {k_=}')
+            print(f'DEBUG: {f(k_)=}')
+        print('### END EXCEPTION ###')
 
-    # print('max before mult', delta_k.max())
-    # print('max b.reshape(delta_k.shape)', b.reshape(delta_k.shape).max())
-    # if b.reshape(delta_k.shape).max() > 1:
-    #     np.savetxt('k.dat', k)
-    #     np.savetxt('b.dat', b)
-    
+        raise RuntimeError()
+
     # Apply the bias
-    # delta_k *= np.sqrt(b.reshape(delta_k.shape))
+    delta_k = fft.fftn(delta_x)    
     delta_k = delta_k * np.sqrt(b.reshape(delta_k.shape))
-    # print('max after mult', delta_k.max())
-
-    
-    # print('LC testing after mult')
-    print(np.any(np.isnan(delta_k)))
-
     
     # Inverse FFT to compute the realisation
-
     delta_x = fft.ifftn(delta_k).real.reshape(shape)
     
     return delta_x
@@ -263,9 +263,9 @@ def divisors(number, mode='print'):
     n = 1
     while(n < number):
         if(number % n == 0):
-            if mode is 'print':
+            if mode == 'print':
                 print(n)
-            elif mode is 'yield':
+            elif mode == 'yield':
                 yield n
         else:
             pass

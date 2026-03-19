@@ -137,7 +137,7 @@ def apply_density_bias(ics, k_bias, b, N, delta_x=None):
         raise RuntimeError()
 
     # Apply the bias
-    delta_k = fft.fftn(delta_x)    
+    delta_k = fft.fftn(delta_x)
     delta_k = delta_k * np.sqrt(b.reshape(delta_k.shape))
     
     # Inverse FFT to compute the realisation

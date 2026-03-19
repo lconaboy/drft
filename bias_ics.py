@@ -166,7 +166,7 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=Fal
     
     # Calculate the minimum and maximum k values from the full box,
     # and extend the range slightly
-    kmin = np.sqrt(3) * 2. * np.pi / ics[0].boxsize
+    kmin = 2. * np.pi / ics[0].boxsize
     kmax = np.sqrt(3) * ics[0].N * kmin / 2.
     kmin = kmin / 1.1
     kmax = kmax * 1.1

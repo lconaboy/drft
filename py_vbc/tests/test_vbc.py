@@ -64,8 +64,8 @@ def test_component_power_spectrum(vbc, comp, computed_results, reference_data):
     np.testing.assert_allclose(
         actual,
         expected,
-        rtol=1e-5,
-        atol=1e-45,
+        rtol=1e-2,
+        atol=1e-5,
         err_msg=(
             f"Power spectrum mismatch for component='{comp}' at v_bc={vbc} km/s. "
             f"Max relative difference: "

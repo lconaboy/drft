@@ -1,0 +1,12 @@
+name: base
+channels:
+  - defaults
+dependencies:
+  - python=3.10
+  - conda==23.3.1
+  - setuptools
+  - pip
+  - wheel
+  - conda-content-trust
+  - python.app
+

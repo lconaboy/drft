@@ -1,12 +1,11 @@
-name: base
+name: drft
 channels:
+  - conda-forge
   - defaults
 dependencies:
   - python=3.10
-  - conda==23.3.1
-  - setuptools
+  - numpy
+  - scipy
+  - matplotlib
+  - pytest
   - pip
-  - wheel
-  - conda-content-trust
-  - python.app
-

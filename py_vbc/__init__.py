@@ -1,3 +1,4 @@
+import os
 import numpy as np
 
 from py_vbc.spectra import *
@@ -15,7 +16,7 @@ TODO
 physically motivated, perhaps even random 
 """
 
-def run_pyvbc(vbc, zstart, zend, dz, kmin=1.0, kmax=1.0e3, n=64, delta=False, verbose=False, transfer=False, isothermal=False):
+def run_pyvbc(vbc, zstart, zend, dz, k=None, kmin=1.0, kmax=1.0e3, n=64, delta=False, verbose=False, transfer=False, isothermal=False):
     """
     Runs py_vbc and returns either the power spectrum or dimensionless power
     spectrum.
@@ -35,6 +36,9 @@ def run_pyvbc(vbc, zstart, zend, dz, kmin=1.0, kmax=1.0e3, n=64, delta=False, ve
         (float)
         Interval in redshift to calculate the derivative of the transfer functions
         over
+    :param k:
+        (array-like, optional)
+        Array of k values (units of Mpc^-1). If provided, kmin, kmax, and n are ignored.
     :param kmin:
         (float)
         Minimum k to calculate the evolution for (units of Mpc^-1)
@@ -50,11 +54,14 @@ def run_pyvbc(vbc, zstart, zend, dz, kmin=1.0, kmax=1.0e3, n=64, delta=False, ve
         If True, will return the dimensionless power spectrum, if False will return
         the usual power spectrum
     """
-    # k = np.logspace(np.log10(kmin), np.log10(kmax), num=n)
-    lkmi = np.log10(kmin)
-    lkma = np.log10(kmax)
-    dlk = (lkma - lkmi) / float(n - 1.0)
-    k = 10.0 ** (np.arange(n, dtype=float) * dlk + lkmi)
+    if k is None:
+        # k = np.logspace(np.log10(kmin), np.log10(kmax), num=n)
+        lkmi = np.log10(kmin)
+        lkma = np.log10(kmax)
+        dlk = (lkma - lkmi) / float(n - 1.0)
+        k = 10.0 ** (np.arange(n, dtype=float) * dlk + lkmi)
+    else:
+        k = np.asarray(k, dtype=float)
 
     g = calc_derivs(k, vbc, zstart, zend, dz, verbose=verbose, isothermal=isothermal)
 
@@ -77,10 +84,7 @@ def run_pyvbc(vbc, zstart, zend, dz, kmin=1.0, kmax=1.0e3, n=64, delta=False, ve
 
 
 def run_tests():
-    # from py_vbc.tests.itf_test import itf_test
-    # from py_vbc.tests.irf_test import irf_test
-    # from py_vbc.tests.g_test import g_test
-    # from py_vbc.tests.p_test import p_test
-    # from py_vbc.tests.pv_test import pv_test
-    # from py_vbc.tests.g_test import ratio_test
-    from py_vbc.tests.bias_test import bias_test
+    """Run the py_vbc test suite using pytest."""
+    import pytest
+    test_file = os.path.join(os.path.dirname(__file__), 'tests', 'test_vbc.py')
+    return pytest.main(['-v', test_file])

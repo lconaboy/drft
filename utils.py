@@ -4,7 +4,7 @@ power spectrum k dependent bias. Contains routines to run CICsASS
 """
 import sys
 import numpy as np
-from py_vbc import run_pyvbc
+from py_vbc import RuntimeConfig, load_config, run_pyvbc
 
 def fft_sample_spacing(N, boxsize):
     from cosmology import _fft_sample_spacing
@@ -164,7 +164,8 @@ def apply_velocity_bias(ics, k_bias, b, N, vel=None):
     return
 
 
-def compute_bias(ics, vbc, zstart=1000, kmin=0.1, kmax=10000, n=100, delta=False):
+def compute_bias(ics, vbc, zstart=1000, kmin=0.1, kmax=10000, n=100,
+                 delta=False, config=None):
     """
     Computes the bias to /both/ density and velocity fields.  Assumes
     v_bc is constant at z=zstart.
@@ -181,7 +182,13 @@ def compute_bias(ics, vbc, zstart=1000, kmin=0.1, kmax=10000, n=100, delta=False
         (Mpc^-1)
     :param n: int, number of k-values in total if positive, ~number per
               log10(k) if negative
+    :param config: RuntimeConfig or path to a py_vbc YAML configuration
     """
+    if config is None:
+        raise ValueError("compute_bias requires a py_vbc runtime configuration")
+    if not isinstance(config, RuntimeConfig):
+        config = load_config(config)
+
     # Compute size of grid and boxsize
     N = vbc.shape[0]
     boxsize = float(ics.boxsize) * (float(N) / float(ics.N))
@@ -207,7 +214,7 @@ def compute_bias(ics, vbc, zstart=1000, kmin=0.1, kmax=10000, n=100, delta=False
     # Calculate how many samples we need for the given per log10(k)
     if (n < 0):
         dlk = np.log10(kmax) - np.log10(kmin)
-        n = max([np.int(np.ceil(np.abs(n) * dlk)), 100])
+        n = max([int(np.ceil(np.abs(n) * dlk)), 100])
         # print('compute_bias')
         # print('kmin', kmin, 'kmax', kmax, 'dlk', dlk, 'n', n)
         # sys.exit(0)
@@ -215,10 +222,12 @@ def compute_bias(ics, vbc, zstart=1000, kmin=0.1, kmax=10000, n=100, delta=False
     # Boxsize doesn't make a difference when calculating the power
     # spectra using py_vbc. The power spectrum tuple contains (p_c, p_b, p_vc,
     # p_vb) and k is in units of Mpc^-1.
-    k, ps_vbc0 = run_pyvbc(vbc=0.0, zstart=zstart, zend=z, dz=3, kmin=kmin,
-                           kmax=kmax, n=n, delta=delta)
-    k, ps_vbcrecom = run_pyvbc(vbc=rms_recom, zstart=zstart, zend=z, dz=3, kmin=kmin,
-                               kmax=kmax, n=n, delta=delta)
+    k, ps_vbc0 = run_pyvbc(vbc=0.0, zstart=zstart, zend=z, dz=3,
+                           config_file=config, kmin=kmin, kmax=kmax, n=n,
+                           delta=delta)
+    k, ps_vbcrecom = run_pyvbc(vbc=rms_recom, zstart=zstart, zend=z, dz=3,
+                               config_file=config, kmin=kmin, kmax=kmax, n=n,
+                               delta=delta)
 
     # Calculate the biases
     b_c = ps_vbcrecom[0] / ps_vbc0[0]
@@ -489,8 +498,10 @@ def clean(level):
 #     ps_vbcrecom = run_cicsass_lc(boxsize, z, rms_recom)
 
 #     # Boxsize doesn't make a difference when calculating the power spectra
-#     # ps_vbc0 = run_pyvbc(vbc=0.0, zstart=zstart, zend=z, dz=3)
-#     # ps_vbcrecom = run_pyvbc(vbc=rms_recom, zstart=zstart, zend=z, dz=3)
+#     # ps_vbc0 = run_pyvbc(vbc=0.0, zstart=zstart, zend=z, dz=3,
+#     #                    config_file='params.yaml')
+#     # ps_vbcrecom = run_pyvbc(vbc=rms_recom, zstart=zstart, zend=z, dz=3,
+#     #                        config_file='params.yaml')
 
 #     cosmo = ics.cosmo
 
@@ -621,8 +632,10 @@ def clean(level):
     
 #     # Boxsize doesn't make a difference when calculating the power
 #     # spectra using py_vbc
-#     # ps_vbc0 = run_pyvbc(vbc=0.0, zstart=zstart, zend=z, dz=3)
-#     # ps_vbcrecom = run_pyvbc(vbc=rms_recom, zstart=zstart, zend=z, dz=3)
+#     # ps_vbc0 = run_pyvbc(vbc=0.0, zstart=zstart, zend=z, dz=3,
+#     #                    config_file='params.yaml')
+#     # ps_vbcrecom = run_pyvbc(vbc=rms_recom, zstart=zstart, zend=z, dz=3,
+#     #                        config_file='params.yaml')
 
 #     #CDM bias
 #     b_cdm = ps_vbcrecom[1] / ps_vbc0[1]

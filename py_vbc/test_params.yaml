@@ -1,0 +1,15 @@
+cosmology:
+  h: 0.71
+  omega_m: 0.27
+  omega_b: 0.046
+  sigma_8: 0.8
+  ns: 0.95
+  costh: 1.0
+
+filenames:
+  transfer_functions:
+    0: tfs/initSB_transfer_out_z000.dat
+    997: tfs/initSB_transfer_out_z997.dat
+    1000: tfs/initSB_transfer_out_z1000.dat
+    1003: tfs/initSB_transfer_out_z1003.dat
+  rf_base: recfast/xeTrecfast.out

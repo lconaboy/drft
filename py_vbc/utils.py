@@ -1,12 +1,16 @@
 import numpy as np
 
-from py_vbc.constants import *
+from py_vbc.config import Cosmology
 
-def hubble(z):
-    """Calculates the value of the Hubble parameter at redshift z in terms
-    of H_0, given omega=1. 
 
-    :param z: redshift to evaluate H at
+def hubble(z, cosmology: Cosmology):
+    """Calculate the dimensionless Hubble parameter at redshift *z*.
+
+    :param z: redshift at which to evaluate the Hubble parameter
+    :param cosmology: validated cosmological parameters
     """
-    return np.sqrt((1-(omega_m + omega_r)) + (omega_m*(1+z)**3) +
-                   (omega_r*(1+z)**4))
+    return np.sqrt(
+        (1 - (cosmology.omega_m + cosmology.omega_r))
+        + cosmology.omega_m * (1 + z) ** 3
+        + cosmology.omega_r * (1 + z) ** 4
+    )

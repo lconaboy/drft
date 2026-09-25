@@ -28,4 +28,6 @@ lin=0                            # 0 - do just baryons, 1 - do deltab
 				 # and deltac (linear) (only 0 is
 				 # recommended)
 
-mpirun -n $SLURM_NTASKS python3 $drft $ic_path $level $dx $levelmin "work" $lin
+config="/path/to/params.yaml"     # Runtime py_vbc YAML configuration
+
+mpirun -n $SLURM_NTASKS python3 $drft $ic_path $level $dx $levelmin "work" "$config" $lin

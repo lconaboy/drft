@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 from py_vbc.utils import hubble
 from py_vbc.derivatives import set_ics
-from py_vbc.tests.test_constants import *
+from py_vbc.tests.test_constants import TEST_CONFIG, h
 
 """ Script to plot the comparison between the ICs set by py_vbc and
 CICsASS """
@@ -79,7 +79,8 @@ def plot_comparison(x0, y0, y1, qty):
 
 ics_c = np.loadtxt(path+'ic.dat')
 k_c = ics_c[:, 0]
-lk_c = np.log10(k_c/hconst)
+k_c_mpc = k_c * h
+lk_c = np.log10(k_c)
 delc_c_r = ics_c[:, 1]
 delc_c_i = ics_c[:, 2]
 delc_dot_c_r = ics_c[:, 3]
@@ -93,7 +94,7 @@ xe_c = ics_c[:, 10]
 delt_c_r = ics_c[:, 11]
 delt_c_i = ics_c[:, 12]
 
-ics = set_ics(lk_c)
+ics = set_ics(k_c_mpc, zstart=1000.0, dz=3.0, config=TEST_CONFIG)
 qty = ['dc', 'db', 'dc_dot', 'db_dot', 'dt']
 for q, i in enumerate([0, 2, 4, 6, 10]):
     plot_comparison(lk_c, (ics[:, i], ics[:, i]), (ics_c[:, i+1], ics_c[:, i+1]), qty=qty[q])

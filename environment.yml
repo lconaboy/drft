@@ -8,4 +8,5 @@ dependencies:
   - scipy
   - matplotlib
   - pytest
+  - pyyaml
   - pip

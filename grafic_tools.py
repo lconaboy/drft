@@ -774,7 +774,7 @@ def impose_vbc(path, level, v):
 
     
 
-def derive_deltac(path, level, per, omega_b=None):
+def derive_deltac(path, level, per, omega_b=None, config_file=None):
     """Calculates the deltac field by CIC interpolating the CDM particle
     positions, using the delc routine from cic.f95. Make sure that
     cic.f95 has been compiled with f2py before running.
@@ -784,8 +784,11 @@ def derive_deltac(path, level, per, omega_b=None):
     :param level: 
         (int) level to load
     :param omega_b:
-        (float or None) value of baryon density parameter, if None this 
-        is read from the py_vbc params
+        value of the baryon density parameter; if omitted, read it from
+        ``config_file``
+    :param config_file:
+        runtime py_vbc YAML path or preloaded configuration used when
+        ``omega_b`` is omitted
     :returns: 
         None
     :rtype:
@@ -793,6 +796,7 @@ def derive_deltac(path, level, per, omega_b=None):
 
     """
     import os
+    import time
     import cic
     import warnings
     
@@ -808,19 +812,20 @@ def derive_deltac(path, level, per, omega_b=None):
 
     # Get omega_b
     if omega_b is None:
-        import configparser
-        config_path, _ = os.path.split(__file__)
-        config_fname = 'py_vbc/planck2018_params.ini'
-        config = configparser.ConfigParser()
-        config.read(config_path + '/' + config_fname)
-
-        omega_b = np.float32(config.get('cosmology', 'omega_b'))
-        print('---- using py_vbc params for omega_b: ', omega_b)
-    elif type(omega_b) == type(0.1):
+        if config_file is None:
+            raise ValueError('provide omega_b or a py_vbc YAML config_file')
+        from py_vbc.config import RuntimeConfig, load_config
+        if isinstance(config_file, RuntimeConfig):
+            config = config_file
+        else:
+            config = load_config(config_file)
+        omega_b = np.float32(config.cosmology.omega_b)
+        print('---- using py_vbc config for omega_b: ', omega_b)
+    elif isinstance(omega_b, (float, np.floating)):
         omega_b = np.float32(omega_b)
-        print('---- using provided value for omega_b: ', omega_b)        
+        print('---- using provided value for omega_b: ', omega_b)
     else:
-        raise Exception('omega_b should be float or None')
+        raise TypeError('omega_b should be a floating-point value or None')
         
     cic.gen_delc(level_path, omega_b, per)
 

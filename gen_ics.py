@@ -1,4 +1,4 @@
-def main(path, level, levelmin, cur_dir=False, um=None):
+def main(path, level, levelmin, config_file, cur_dir=False, um=None):
     """Function for generating initial conditions files using the
     ic_deltab, ic_deltac files and various linear approximations,
     which are detailed in linear.py. Writes the IC files and a
@@ -11,6 +11,8 @@ def main(path, level, levelmin, cur_dir=False, um=None):
     :param levelmin:
         (int) minimum overall level of the IC files, to determine 
         whether periodic CIC interpolation is used
+    :param config_file:
+        path to the py_vbc YAML configuration or a preloaded RuntimeConfig
     :param cur_dir:
         (bool) write the IC files to the current dir (i.e. path/level_xxx)
     :param um: 
@@ -22,6 +24,15 @@ def main(path, level, levelmin, cur_dir=False, um=None):
     :rtype:
 
     """
+    if config_file is None:
+        raise ValueError("gen_ics requires a py_vbc runtime configuration")
+
+    from py_vbc import RuntimeConfig, load_config
+    if isinstance(config_file, RuntimeConfig):
+        config = config_file
+    else:
+        config = load_config(config_file)
+
     import os
     import utils as vbc_utils
     from linear import generate
@@ -56,7 +67,7 @@ def main(path, level, levelmin, cur_dir=False, um=None):
 
     # Generate deltac field if it doesn't exist
     if not os.path.isfile(write_path+'ic_deltac'):
-        grafic.derive_deltac(path, level, per)
+        grafic.derive_deltac(path, level, per, config_file=config)
 
     # Generate the velocity fields for the baryons
     print('---- deriving baryon velocities')
@@ -144,24 +155,26 @@ def main(path, level, levelmin, cur_dir=False, um=None):
 if __name__ == '__main__':
     import sys
 
-    if len(sys.argv) < 4:
-        print('Usage: python gen_ics.py <path/to/ics/> <current level> <min level> [<write to current dir?> <unmodified files?>]')
+    if len(sys.argv) < 5:
+        print('Usage: python gen_ics.py <path/to/ics/> <current level> <min level> '
+              '<py_vbc_config.yaml> [<write to current dir?> <unmodified files?>]')
         sys.exit()
     
     path = sys.argv[1]
     level = int(sys.argv[2])
     levelmin = int(sys.argv[3])
+    config_file = sys.argv[4]
     cur_dir = False
     um = None
     
     # Optional
-    if len(sys.argv) > 4:
-        cur_dir = bool(int(sys.argv[4]))
     if len(sys.argv) > 5:
-        um = sys.argv[5]
+        cur_dir = bool(int(sys.argv[5]))
+    if len(sys.argv) > 6:
+        um = sys.argv[6]
 
     print('Working on', path)
     print('Working on level', level,'with levelmin', levelmin)
     print('Working in modes: cur_dir', cur_dir, 'um', um)
         
-    main(path, level, levelmin, cur_dir, um)
+    main(path, level, levelmin, config_file, cur_dir, um)

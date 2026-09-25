@@ -1,9 +1,13 @@
 import os
+from pathlib import Path
+
 import numpy as np
 import matplotlib.pyplot as plt
 
-from py_vbc.constants import *
+from py_vbc.config import load_config
 from py_vbc.interpolations import interpolate_tf
+
+CONFIG = load_config(Path(__file__).parents[2] / "planck2018_params.yaml")
 
 path, _ = os.path.split(__file__)
 
@@ -109,8 +113,8 @@ def plot_comparison(x_pv, yc_pv, yb_pv, x_c, yc_c, yb_c, d='', yl=False):
 
 
 # Interpolate the TFs using py_vbc
-c_spline, dc_spline = interpolate_tf('c', z=1000.0, dz=3.0)
-b_spline, db_spline = interpolate_tf('b', z=1000.0, dz=3.0)
+c_spline, dc_spline = interpolate_tf('c', z=1000.0, config=CONFIG, dz=3.0)
+b_spline, db_spline = interpolate_tf('b', z=1000.0, config=CONFIG, dz=3.0)
 
 # Load up the CICsASS data
 vals_c = np.loadtxt(path+'/c.dat')

@@ -12,6 +12,7 @@ from mpi4py import MPI
 
 import utils as vbc_utils
 import grafic_tools as grafic
+from py_vbc import RuntimeConfig, load_config
 
 class Result(object):
     '''
@@ -44,7 +45,8 @@ class Patch(object):
         self.field = field
 
 
-def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=False):
+def work(path, level, patch_size, levelmin, lin=False, verbose=True,
+         ret_vbc=False, config_file=None):
     """Computes a new set of biased grafic fields by convolving patches of
     the fields with bias factors computed using py_vbc.
 
@@ -56,9 +58,16 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=Fal
     :param lin: (bool) only bias deltac/deltab (True) or deltab/velb* (False)?
     :param verbose: (bool) controls printout
     :param ret_vbc: (bool) testing feature, generate an IC file of the patched vbc
+    :param config_file: py_vbc YAML path or preloaded RuntimeConfig
     :returns: 
     :rtype:
     """
+    if config_file is None:
+        raise ValueError("work requires a py_vbc YAML config_file")
+    if isinstance(config_file, RuntimeConfig):
+        config = config_file
+    else:
+        config = load_config(config_file)
 
     # MPI stuff
     comm = MPI.COMM_WORLD
@@ -208,7 +217,9 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=Fal
             # Compute the bias
             vbc_utils.msg(rank, "Computing bias.", verbose)
             # Commented the below for testing
-            k, b_c, b_b, b_vc, b_vb = vbc_utils.compute_bias(ics[2], vbc)
+            k, b_c, b_b, b_vc, b_vb = vbc_utils.compute_bias(
+                ics[2], vbc, config=config
+            )
 
             # Convolve with field
             vbc_utils.msg(rank, "Performing convolution.", verbose)
@@ -309,10 +320,9 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True, ret_vbc=Fal
                 vbc_utils.msg(rank, "Computing bias.", verbose)
                 # vbc_utils.msg(rank, "WARNING kmax set to 2000 Mpc^-1.", verbose)
                 # Commented the below for testing
-                k, b_c, b_b, b_vc, b_vb = vbc_utils.compute_bias(ics[4], vbc,
-                                                                 kmin=kmin,
-                                                                 kmax=kmax,
-                                                                 n=1024)
+                k, b_c, b_b, b_vc, b_vb = vbc_utils.compute_bias(
+                    ics[4], vbc, kmin=kmin, kmax=kmax, n=1024, config=config
+                )
 
                 # LC TESTTNG
                 if np.any(np.isnan(delta)):
@@ -582,10 +592,12 @@ if __name__ == '__main__':
     import sys
     import traceback
 
-    if len(sys.argv) < 4:
+    if len(sys.argv) < 6:
         print('Usage: [mpiexec] python bias_ics.py </path/to/ics/ (str)> '
-              '<level (int)> <patch size (float)> <levelmin (int)> <mode("work" or "write")>\n'
-              '[<lin (bool)> <verbose (bool)>]', flush=True)
+              '<level (int)> <patch size (float)> <levelmin (int)> '
+              '<mode("work" or "write")>\n'
+              'Work mode also requires <py_vbc_config.yaml>; both modes '
+              'accept [<lin (bool)> <verbose (bool)>].', flush=True)
         sys.exit()
 
     path = sys.argv[1]
@@ -593,15 +605,23 @@ if __name__ == '__main__':
     patch_size = float(sys.argv[3])
     levelmin = int(sys.argv[4])
     mode = str(sys.argv[5])
+    config_file = None
     lin = False
     verbose = True
 
-    # Optional linear argument
-    if len(sys.argv) > 6:
-        lin = bool(int(sys.argv[6]))
-    # Optional verbose argument
-    if len(sys.argv) > 7:
-        verbose = bool(int(sys.argv[7]))
+    if mode == 'work':
+        if len(sys.argv) < 7:
+            print('Work mode requires <py_vbc_config.yaml>.', flush=True)
+            sys.exit()
+        config_file = sys.argv[6]
+        next_optional = 7
+    else:
+        next_optional = 6
+
+    if len(sys.argv) > next_optional:
+        lin = bool(int(sys.argv[next_optional]))
+    if len(sys.argv) > next_optional + 1:
+        verbose = bool(int(sys.argv[next_optional + 1]))
 
     ret_vbc = True
 
@@ -612,7 +632,8 @@ if __name__ == '__main__':
             # fields. Not terribly efficient, as the other processes
             # are waiting for rank 0 to write, but the writing is
             # quite quick anyway.
-            work(path, level, patch_size, levelmin, lin, verbose, ret_vbc)
+            work(path, level, patch_size, levelmin, lin, verbose, ret_vbc,
+                 config_file=config_file)
             # write(path, level, lin, verbose, ret_vbc)
         elif mode == 'write':
             # In 'write' mode, we just write

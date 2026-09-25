@@ -36,6 +36,10 @@ def computed_results(reference_data):
             zstart=zstart,
             zend=zend,
             dz=dz,
+            config_file=os.path.join(
+                os.path.dirname(os.path.dirname(__file__)),
+                "planck2018_params.yaml",
+            ),
             k=k_ref,
             delta=False,
             verbose=False,

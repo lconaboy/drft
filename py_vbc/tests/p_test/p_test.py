@@ -2,7 +2,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 
-from py_vbc.constants import *
+from py_vbc.tests.test_constants import PLANCK_CONFIG
 from py_vbc.derivatives import calc_derivs
 from py_vbc.spectra import calc_power_spec, calc_delta
 
@@ -90,8 +90,12 @@ def plot_comparison(x0, yc0, yb0, x1, yc1, yb1, camb=None):
 p_c = np.loadtxt(path+'/p.dat')
 p_c_t = p_c[:, 1] + p_c[:, 2]
 
-g_pv = calc_derivs(p_c[:, 0], vbc=0.0, zstart=1000.0, zend=50.0, dz=3.0)
-p_pv_c, p_pv_b, _, _ = calc_power_spec(p_c[:, 0], g_pv, zstart=1000.0)
+g_pv = calc_derivs(
+    p_c[:, 0], vbc=0.0, zstart=1000.0, zend=50.0, dz=3.0, config=PLANCK_CONFIG
+)
+p_pv_c, p_pv_b, _, _ = calc_power_spec(
+    p_c[:, 0], g_pv, zstart=1000.0, config=PLANCK_CONFIG
+)
 d_pv_c = calc_delta(p_c[:, 0], p_pv_c)
 d_pv_b = calc_delta(p_c[:, 0], p_pv_b)
 

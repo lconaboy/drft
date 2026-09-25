@@ -1,7 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from py_vbc.constants import *
 from py_vbc.derivatives import calc_derivs
 
 path = 'py_vbc/tests/g_test/'

@@ -1,12 +1,24 @@
+from pathlib import Path
+
 import numpy as np
 import matplotlib.pyplot as plt
-from py_vbc.constants import *
+from py_vbc import load_config
 from py_vbc.derivatives import calc_derivs
+
+CONFIG = load_config(Path(__file__).parents[2] / "planck2018_params.yaml")
 
 k = 10.**np.linspace(-4, 3.5, num=400)
 delta = {}
 for z in (900, 400, 200):
-    delta[str(z)] = calc_derivs(k, vbc=0.0, zstart=1000.0, zend=z, dz=3.0, verbose=True)
+    delta[str(z)] = calc_derivs(
+        k,
+        vbc=0.0,
+        zstart=1000.0,
+        zend=z,
+        dz=3.0,
+        config=CONFIG,
+        verbose=True,
+    )
     
 yl0 = [0.0015, 1.5]
 yl1 = [0.01, 1.5]

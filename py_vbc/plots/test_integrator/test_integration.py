@@ -1,6 +1,11 @@
+from pathlib import Path
+
 import numpy as np
 import matplotlib.pyplot as plt
+from py_vbc import load_config
 from py_vbc.derivatives import calc_derivs
+
+CONFIG = load_config(Path(__file__).parents[2] / "planck2018_params.yaml")
 
 def calc_bias(g0, gv):
     return gv[:, [0, 2, 5, 6]] / g0[:, [0, 2, 5, 6]]
@@ -19,8 +24,12 @@ verbose = True
 integrators = ['LSODA']
 
 for integrator in integrators:
-    g0 = calc_derivs(k, 0, zstart, zend, dz, verbose, integrator)
-    gv = calc_derivs(k, vr, zstart, zend, dz, verbose, integrator)
+    g0 = calc_derivs(
+        k, 0, zstart, zend, dz, CONFIG, verbose, integrator
+    )
+    gv = calc_derivs(
+        k, vr, zstart, zend, dz, CONFIG, verbose, integrator
+    )
     b = calc_bias(g0, gv)
     out = np.zeros((n, 5))
     out[:, 0] = k

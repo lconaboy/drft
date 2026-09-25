@@ -1,0 +1,22 @@
+cosmology:
+  h: 0.673
+  omega_m: 0.314
+  omega_b: 0.049
+  sigma_8: 0.812
+  ns: 0.965
+  costh: 1.0
+
+filenames:
+  transfer_functions:
+    0: tfs/planck2018_transfer_out_z000.dat
+    200: tfs/planck2018_transfer_out_z200.dat
+    300: tfs/planck2018_transfer_out_z300.dat
+    400: tfs/planck2018_transfer_out_z400.dat
+    500: tfs/planck2018_transfer_out_z500.dat
+    600: tfs/planck2018_transfer_out_z600.dat
+    700: tfs/planck2018_transfer_out_z700.dat
+    800: tfs/planck2018_transfer_out_z800.dat
+    900: tfs/planck2018_transfer_out_z900.dat
+    997: tfs/planck2018_transfer_out_z997.dat
+    1000: tfs/planck2018_transfer_out_z1000.dat
+    1003: tfs/planck2018_transfer_out_z1003.dat

@@ -1,7 +1,10 @@
 import os
+from pathlib import Path
+
 import numpy as np
 import matplotlib.pyplot as plt
 
+from py_vbc.config import load_config
 from py_vbc.interpolations import interpolate_recfast
 
 """ Script to plot the comparison between the recfast interpolation
@@ -83,7 +86,8 @@ T_c = r_c[:, 1]
 xe_c = r_c[:, 2]
 
 # Calculate splines and generate range of data
-T_spline, xe_spline = interpolate_recfast()
+config = load_config(Path(__file__).parents[2] / "planck2018_params.yaml")
+T_spline, xe_spline = interpolate_recfast(config)
 T = T_spline(z_c)
 xe = xe_spline(z_c)
 

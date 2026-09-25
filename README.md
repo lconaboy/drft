@@ -30,19 +30,65 @@ which uses [yt](https://github.com/yt-project/yt), Turk et al. 2011)
 
 4. Run `bias_ics.py` (see `work_ics.sh.example` for an example script)
 
-Cosmological parameters for `py_vbc` can be set using a `.ini` file,
-see `py_vbc/planck2018_params.ini` for an example. If you do want to
-change parameters, you will need to:
+`py_vbc` is configured at runtime with a YAML file. A flat cosmology
+is assumed. See `py_vbc/planck2018_params.yaml` for the complete
+Planck example (the mapping below shows the entries needed for the
+standard z=1000 run):
 
-1. Change `config_fname` in `py_vbc/constants.py` to the new
-configuration filename
+```yaml
+cosmology:
+  h: 0.673
+  omega_m: 0.314
+  omega_b: 0.049
+  sigma_8: 0.812
+  ns: 0.965
+  costh: 1.0
 
-2. Regenerate transfer functions at z=1003, 1000, 997 and 200 (for the
-setup described in the paper) and place them in `py_vbc/tfs/`
+filenames:
+  transfer_functions:
+    0: tfs/planck2018_transfer_out_z000.dat
+    997: tfs/planck2018_transfer_out_z997.dat
+    1000: tfs/planck2018_transfer_out_z1000.dat
+    1003: tfs/planck2018_transfer_out_z1003.dat
+```
 
-3. Regenerate a
+All paths in `filenames` are resolved relative to the YAML file. Transfer
+functions are explicit redshift-to-file entries, so their filenames do not
+need to follow a shared prefix. For example, a run with `zstart=1000` and
+`dz=3` needs entries at z=997, 1000, and 1003; power-spectrum normalization
+also uses the configured z=0 entry. `rf_base` is optional; when omitted,
+py_vbc uses the bundled `py_vbc/recfast/planck2018_recfast.dat` file and
+prints one runtime notice. A custom `rf_base` may point to any
 [RECFAST](https://www.astro.ubc.ca/people/scott/recfast.html)
-(Seager et al. 1999) output and place it in `py_vbc/recfast/`
+(Seager et al. 1999) output. The radiation density is derived internally as
+`omega_r = 4.15e-5 / (h ** 2.0)` (Dodelson 2002, Eq. 2.86), so it is not a
+YAML input.
+
+Pass the selected configuration to every run:
+
+```python
+import py_vbc
+
+k, (p_c, p_b, p_vc, p_vb) = py_vbc.run_pyvbc(
+    vbc=30.0,
+    zstart=1000.0,
+    zend=200.0,
+    dz=3.0,
+    config_file="path/to/params.yaml",
+)
+```
+
+For repeated calculations, you canpreload and reuse the immutable
+configuration:
+
+```python
+config = py_vbc.load_config("path/to/params.yaml")
+k, power = py_vbc.run_pyvbc(..., config_file=config)
+```
+
+The main `drft` routines (`bias_ics.py`, `gen_ics.py`, and
+`utils.compute_bias()`) accept the same YAML configuration; see
+`work_ics.sh.example` for the command-line form used by `bias_ics.py`.
 
 
 ### Acknowledging

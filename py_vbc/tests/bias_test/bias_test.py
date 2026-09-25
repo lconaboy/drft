@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from py_vbc.spectra import calc_power_spec
-from py_vbc.constants import *
+from py_vbc.tests.test_constants import PLANCK_CONFIG
 from py_vbc.derivatives import calc_derivs
 
 path = 'py_vbc/tests/bias_test'
@@ -44,12 +44,20 @@ p_c_t = p_c[:, 1] + p_c[:, 2]
 zend = 200.0
 
 # Calculate v_bc = 0.0
-g_pv = calc_derivs(p_c[:, 0], vbc=0.0, zstart=1000.0, zend=zend, dz=3.0)
-p_pv_c0, p_pv_b0, p_pv_vc0, p_pv_vb0 = calc_power_spec(p_c[:, 0], g_pv, zstart=1000.0)
+g_pv = calc_derivs(
+    p_c[:, 0], vbc=0.0, zstart=1000.0, zend=zend, dz=3.0, config=PLANCK_CONFIG
+)
+p_pv_c0, p_pv_b0, p_pv_vc0, p_pv_vb0 = calc_power_spec(
+    p_c[:, 0], g_pv, zstart=1000.0, config=PLANCK_CONFIG
+)
 
 # Calculate v_bc = 30.0
-g_pv = calc_derivs(p_c[:, 0], vbc=30.0, zstart=1000.0, zend=zend, dz=3.0)
-p_pv_c30, p_pv_b30, p_pv_vc30, p_pv_vb30 = calc_power_spec(p_c[:, 0], g_pv, zstart=1000.0)
+g_pv = calc_derivs(
+    p_c[:, 0], vbc=30.0, zstart=1000.0, zend=zend, dz=3.0, config=PLANCK_CONFIG
+)
+p_pv_c30, p_pv_b30, p_pv_vc30, p_pv_vb30 = calc_power_spec(
+    p_c[:, 0], g_pv, zstart=1000.0, config=PLANCK_CONFIG
+)
 
 # Calculate the bias = v_bc0/v_bc30
 bias_c = p_pv_c30 / p_pv_c0

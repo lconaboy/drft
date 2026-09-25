@@ -1,90 +1,154 @@
 import os
+from pathlib import Path
+
 import numpy as np
 
-from py_vbc.spectra import *
-from py_vbc.constants import *
+from py_vbc.config import ConfigError, RuntimeConfig, load_config
+from py_vbc.constants import (
+    ASB,
+    BOLTZK,
+    CRITDENSITY,
+    DELB,
+    DELC,
+    DELT,
+    DELTAB,
+    DELTAC,
+    DELTAT,
+    IMAG,
+    LIGHTSPEED,
+    MEL_EV,
+    MELECTRON,
+    MPCTOCM,
+    MPCTOKM,
+    MPROTON,
+    MUB,
+    REAL,
+    SIGMAT,
+    TCMB,
+    T_GAMMA,
+    U_CMB,
+    VEL,
+    VELIMAG,
+    VELREAL,
+    YHE,
+    verbose,
+)
 from py_vbc.derivatives import calc_derivs
+from py_vbc.spectra import calc_delta, calc_norm, calc_power_spec, calc_tf, sigma
 
-"""
-A Python version of the vbc_transfer module written by Matt
-McQuinn & Ryan O'Leary (astro-ph/1204.1344). Almost identical save for
-the removal of some obsolete features and Python optimisation.
 
-TODO
+def run_pyvbc(
+    vbc,
+    zstart,
+    zend,
+    dz,
+    config_file: str | Path | RuntimeConfig,
+    *,
+    k=None,
+    kmin=1.0,
+    kmax=1.0e3,
+    n=64,
+    delta=False,
+    verbose=False,
+    transfer=False,
+    isothermal=False,
+):
+    """Run py_vbc and return power or transfer functions.
 
-- should costh really be a constant input at runtime? or more
-physically motivated, perhaps even random 
-"""
-
-def run_pyvbc(vbc, zstart, zend, dz, k=None, kmin=1.0, kmax=1.0e3, n=64, delta=False, verbose=False, transfer=False, isothermal=False):
-    """
-    Runs py_vbc and returns either the power spectrum or dimensionless power
-    spectrum.
-
-    :param vbc:
-        (float)
-        Magnitude of v_bc at redshift zstart
-    :param zstart:
-        (float)
-        Redshift to start integrating the evoltuion equations form, e.g. z~1000
-        N.B. you will need the appropriate transfer functions at zstart, zstart+dz
-        and zstart-dz
-    :param zend:
-        (float)
-        Redshift to evolve the equations to, e.g. the start of the simulation
-    :param dz:
-        (float)
-        Interval in redshift to calculate the derivative of the transfer functions
-        over
-    :param k:
-        (array-like, optional)
-        Array of k values (units of Mpc^-1). If provided, kmin, kmax, and n are ignored.
-    :param kmin:
-        (float)
-        Minimum k to calculate the evolution for (units of Mpc^-1)
-    :param kmax:
-        (float)
-        Maximum k to calculate the evolution for (units of Mpc^-1)
-    :param n:
-        (int)
-        Number of k-values to calculate for, will be equally distributed in log_10
-        space between k_min and k_max
-    :param delta:
-        (bool)
-        If True, will return the dimensionless power spectrum, if False will return
-        the usual power spectrum
+    :param vbc: magnitude of the baryon--dark-matter relative velocity at
+        ``zstart`` in km/s
+    :param zstart: redshift at which transfer-function initial conditions are set
+    :param zend: redshift at which to evaluate the evolved fields
+    :param dz: half-width of the redshift interval used to differentiate TFs
+    :param config_file: YAML path or preloaded RuntimeConfig selected at runtime
+    :param k: optional wavenumber array in Mpc^-1
+    :param kmin: minimum wavenumber when ``k`` is not provided
+    :param kmax: maximum wavenumber when ``k`` is not provided
+    :param n: number of logarithmically spaced wavenumbers
+    :param delta: return dimensionless power spectra when true
+    :param verbose: print integration progress when true
+    :param transfer: return transfer functions instead of power spectra
+    :param isothermal: omit baryon sound-speed coupling when true
     """
     if k is None:
-        # k = np.logspace(np.log10(kmin), np.log10(kmax), num=n)
-        lkmi = np.log10(kmin)
-        lkma = np.log10(kmax)
-        dlk = (lkma - lkmi) / float(n - 1.0)
-        k = 10.0 ** (np.arange(n, dtype=float) * dlk + lkmi)
+        log_kmin = np.log10(kmin)
+        log_kmax = np.log10(kmax)
+        delta_log_k = (log_kmax - log_kmin) / float(n - 1.0)
+        k = 10.0 ** (np.arange(n, dtype=float) * delta_log_k + log_kmin)
     else:
         k = np.asarray(k, dtype=float)
 
-    g = calc_derivs(k, vbc, zstart, zend, dz, verbose=verbose, isothermal=isothermal)
-
+    if isinstance(config_file, RuntimeConfig):
+        config = config_file
+    else:
+        config = load_config(config_file)
+    growth = calc_derivs(
+        k,
+        vbc,
+        zstart,
+        zend,
+        dz,
+        config,
+        verbose=verbose,
+        isothermal=isothermal,
+        require_z0=not transfer,
+    )
 
     if transfer:
-        t_c, t_b, t_vc, t_vb = calc_tf(k, g, zstart)
-        return k, (t_c, t_b, t_vc, t_vb)
-        
-    p_c, p_b, p_vc, p_vb = calc_power_spec(k, g, zstart)
-    if delta is False:
-        return k, (p_c, p_b, p_vc, p_vb)
+        values = calc_tf(k, growth, zstart, config)
+        return k, values
 
-    elif delta is True:
-        d_c = calc_delta(k, p_c)
-        d_b = calc_delta(k, p_b)
-        d_vc = calc_delta(k, p_vc)
-        d_vb = calc_delta(k, p_vb)
+    power = calc_power_spec(k, growth, zstart, config)
+    if delta:
+        return k, tuple(calc_delta(k, component) for component in power)
 
-        return k, (d_c, d_b, d_vc, d_vb)
+    return k, power
 
 
 def run_tests():
     """Run the py_vbc test suite using pytest."""
     import pytest
-    test_file = os.path.join(os.path.dirname(__file__), 'tests', 'test_vbc.py')
-    return pytest.main(['-v', test_file])
+
+    tests_dir = os.path.join(os.path.dirname(__file__), "tests")
+    return pytest.main(["-v", tests_dir])
+
+
+__all__ = [
+    "ConfigError",
+    "RuntimeConfig",
+    "load_config",
+    "run_pyvbc",
+    "run_tests",
+    "verbose",
+    "MPCTOKM",
+    "MPCTOCM",
+    "DELTAC",
+    "DELTAB",
+    "DELTAT",
+    "REAL",
+    "IMAG",
+    "VELREAL",
+    "VELIMAG",
+    "DELC",
+    "DELB",
+    "VEL",
+    "DELT",
+    "TCMB",
+    "MPROTON",
+    "MELECTRON",
+    "MEL_EV",
+    "LIGHTSPEED",
+    "CRITDENSITY",
+    "SIGMAT",
+    "YHE",
+    "BOLTZK",
+    "MUB",
+    "ASB",
+    "U_CMB",
+    "T_GAMMA",
+    "sigma",
+    "calc_norm",
+    "calc_power_spec",
+    "calc_tf",
+    "calc_delta",
+]

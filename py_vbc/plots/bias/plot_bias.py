@@ -12,8 +12,10 @@ vi = 8.44021320
 vr = vi * (zstart + 1) / (zend + 1)
 v0 = 0.0
 
-# k0, p0 = run_pyvbc(v0, zstart, zend, dz, kmin, kmax, n, verbose=True)
-# kv, pv = run_pyvbc(vr, zstart, zend, dz, kmin, kmax, n, verbose=True)
+# k0, p0 = run_pyvbc(v0, zstart, zend, dz, config_file="params.yaml",
+#                    kmin=kmin, kmax=kmax, n=n, verbose=True)
+# kv, pv = run_pyvbc(vr, zstart, zend, dz, config_file="params.yaml",
+#                    kmin=kmin, kmax=kmax, n=n, verbose=True)
 
 # np.savetxt(f'p_vbc_rms_{vr:.2f}.txt', np.array([kv, pv[0], pv[1],
 #                                                 pv[2], pv[3]]).T)

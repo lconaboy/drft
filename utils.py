@@ -3,8 +3,121 @@ Utility functions to include drift velocity in grafIC ics by computing/convolvin
 power spectrum k dependent bias. Contains routines to run CICsASS
 """
 import sys
+import warnings
+from dataclasses import dataclass
+
 import numpy as np
 from py_vbc import RuntimeConfig, load_config, run_pyvbc
+
+
+AHN_MU_DMU = 0.05
+AHN_N_MU = int(round(1.0 / AHN_MU_DMU)) + 1
+
+
+@dataclass
+class BiasGrid:
+    """Wavenumber bias, optionally resolved by direction cosine."""
+
+    k: np.ndarray
+    b_c: np.ndarray
+    b_b: np.ndarray
+    b_vc: np.ndarray
+    b_vb: np.ndarray
+    mu: np.ndarray | None = None
+    direction: np.ndarray | None = None
+
+    def __iter__(self):
+        """Keep the historical five-value unpacking API working."""
+        yield self.k
+        yield self.b_c
+        yield self.b_b
+        yield self.b_vc
+        yield self.b_vb
+
+
+def _directional_bias_table(
+    k_values,
+    mu_values,
+    ps_vbc0,
+    rms_recom,
+    zstart,
+    zend,
+    dz,
+    config,
+    delta,
+):
+    """Evaluate all four bias components on a ``(k, mu)`` grid.
+
+    ``mu_values`` contains the non-negative half of the directional grid.
+    The negative half is recovered by symmetry when the bias is applied.
+    """
+    mu_values = np.asarray(mu_values, dtype=float)
+    if mu_values.ndim != 1 or len(mu_values) < 2:
+        raise ValueError("directional mu grid must contain at least two samples")
+    if not np.all(np.isfinite(mu_values)) or np.any(np.diff(mu_values) <= 0):
+        raise ValueError("directional mu grid must be finite and strictly increasing")
+    if mu_values[0] < -1.0e-12 or mu_values[-1] > 1.0 + 1.0e-12:
+        raise ValueError("directional mu values must lie in [0, 1]")
+
+    n_k = len(k_values)
+    n_mu = len(mu_values)
+    k_grid = np.repeat(k_values, n_mu)
+    mu_grid = np.tile(mu_values, n_k)
+    _, ps_vbcrecom = run_pyvbc(
+        vbc=rms_recom,
+        zstart=zstart,
+        zend=zend,
+        dz=dz,
+        config_file=config,
+        k=k_grid,
+        mu=mu_grid,
+        delta=delta,
+    )
+    shape = (n_k, n_mu)
+    return tuple(
+        ps_vbcrecom[index].reshape(shape) / ps_vbc0[index][:, None]
+        for index in range(4)
+    )
+
+
+def _directional_bias_error(
+    k_values,
+    mu_current,
+    mu_previous,
+    current,
+    previous,
+    mu_atol,
+):
+    """Return the maximum relative change caused by refining the mu grid."""
+    import scipy.interpolate as si
+
+    log_k = np.log10(k_values)
+    kx = min(3, len(k_values) - 1)
+    ky = min(3, len(mu_previous) - 1)
+    if kx < 1 or ky < 1:
+        raise ValueError("directional bias needs at least two k and mu samples")
+
+    query_k, query_mu = np.meshgrid(log_k, mu_current, indexing="ij")
+    error = 0.0
+    for current_values, previous_values in zip(current, previous):
+        interpolator = si.RectBivariateSpline(
+            log_k,
+            mu_previous,
+            previous_values,
+            kx=kx,
+            ky=ky,
+            s=0,
+        )
+        predicted = interpolator(query_k, query_mu, grid=False).reshape(
+            current_values.shape
+        )
+        scale = np.maximum(np.abs(current_values), mu_atol)
+        error = max(
+            error,
+            float(np.max(np.abs(current_values - predicted) / scale)),
+        )
+    return error
+
 
 def fft_sample_spacing(N, boxsize):
     from cosmology import _fft_sample_spacing
@@ -33,6 +146,26 @@ def vbc_med(vbc_field):
     med = np.median(vbc_field)
 
     return med
+
+
+def vbc_vector(velb, velc):
+    """Return the three-component relative velocity field ``v_b - v_c``."""
+    components = []
+    for axis in range(3):
+        components.append(np.asarray(velb[axis]) - np.asarray(velc[axis]))
+    return np.stack(components, axis=-1)
+
+
+def mean_vbc_direction(vbc_field, trim=0):
+    """Return the normalized mean relative-velocity direction."""
+    field = np.asarray(vbc_field, dtype=float)
+    if trim:
+        field = field[tuple(slice(trim, -trim) for _ in range(3))]
+    direction = np.mean(field, axis=(0, 1, 2))
+    magnitude = np.linalg.norm(direction)
+    if not np.isfinite(magnitude) or magnitude == 0:
+        raise ValueError("relative-velocity direction is zero or non-finite")
+    return direction / magnitude
 
 
 def vbc_patch_dist(vbc_field, origin):
@@ -65,86 +198,102 @@ def msg(rank, s, verbose=True):
     else:
         return
 
-def apply_density_bias(ics, k_bias, b, N, delta_x=None):
-    ''' Apply a bias to the realisations power spectrum, and recompute the 3D field.
-    Parameters:
-        b (array): bias to deconvolve with the delta_x field, such that:
-        delta_x = ifft(delta_k/b)
-    '''
+def apply_density_bias(ics, bias, component=None, N=None, delta_x=None):
+    """Apply a scalar or directional bias to a real-space field.
+
+    ``bias`` is normally a :class:`BiasGrid`. The legacy calling convention
+    ``apply_density_bias(ics, k_bias, b, N, delta_x=...)`` is also accepted.
+    """
     import scipy.fftpack as fft
     import scipy.interpolate as si
 
+    if isinstance(bias, BiasGrid):
+        component_names = {
+            "c": "b_c",
+            "b": "b_b",
+            "vc": "b_vc",
+            "vb": "b_vb",
+        }
+        if component not in component_names:
+            raise ValueError("unknown bias component")
+        k_bias = np.asarray(bias.k, dtype=float)
+        b = np.asarray(getattr(bias, component_names[component]), dtype=float)
+        mu_bias = bias.mu
+        direction = bias.direction
+    else:
+        k_bias = np.asarray(bias, dtype=float)
+        b = np.asarray(component, dtype=float)
+        mu_bias = None
+        direction = None
+
     if delta_x is None:
         delta_x = ics
-
-    # The actual shape of the delta_x region
+    delta_x = np.asarray(delta_x)
     shape = delta_x.shape
-    # The shape of the symmetric box
-    shape0 = (shape[0], shape[0], shape[0])
+    if len(shape) != 3 or not (shape[0] == shape[1] == shape[2]):
+        raise ValueError("directional bias currently requires a cubic patch")
 
-    boxsize = float(ics.boxsize) * \
-        (float(N) / float(ics.N))  # this boxsize is the reduced one
+    if N is None:
+        N = shape[0]
+    boxsize = float(ics.boxsize) * (float(N) / float(ics.N))
 
-    # # Resample k as we may be using a subregion
-    k = fft_sample_spacing(delta_x.shape[0], boxsize).flatten()
-    
-    k[k == 0.] = (2. * np.pi) / boxsize
+    kx, ky, kz = fft_sample_spacing_components(shape[0])
+    fac = 2.0 * np.pi / boxsize
+    k_vectors = np.stack((kx * fac, ky * fac, kz * fac), axis=-1)
+    k_magnitude = np.linalg.norm(k_vectors, axis=-1)
+    zero_mode = k_magnitude == 0.0
+    k_flat = k_magnitude.copy().reshape(-1)
+    k_flat[zero_mode.reshape(-1)] = 2.0 * np.pi / boxsize
 
-    # Interpolate/extrapolate the bias to the 3D grid
-    def log_interp1d(xx, yy, kind='linear'):
-        logx = np.log10(xx)
-        logy = np.log10(yy)
-        
-        # The spline was returning strange results, so try with linear
-        # interpolation instead
-        # lin_interp = si.InterpolatedUnivariateSpline(logx, logy)
-        lin_interp = si.interp1d(logx, logy)
-        log_interp = lambda zz: np.power(10.0, lin_interp(np.log10(zz)))
-        # print(f'DEBUG: {xx.min()=} {xx.max()=}')
-        # print(f'DEBUG: {yy.min()=} {yy.max()=}')
-        # print(f'DEBUG: {logy.min()=} {logy.max()=}')
-        # print(f'DEBUG: {logx.min()=} {logx.max()=}')
-        return log_interp
+    if mu_bias is None:
+        interpolator = si.interp1d(
+            np.log10(k_bias),
+            np.log10(b),
+            bounds_error=False,
+            fill_value="extrapolate",
+        )
+        b_grid = np.power(10.0, interpolator(np.log10(k_flat)))
+    else:
+        if direction is None:
+            raise ValueError("directional bias requires a velocity direction")
+        direction = np.asarray(direction, dtype=float)
+        if direction.shape != (3,):
+            raise ValueError("velocity direction must have three components")
+        direction_norm = np.linalg.norm(direction)
+        if not np.isfinite(direction_norm) or direction_norm == 0:
+            raise ValueError("velocity direction must be finite and non-zero")
+        direction = direction / direction_norm
 
-    # print(f'DEBUG: {k_bias.min()=} {k_bias.max()=}')
-    # print(f'DEBUG: {k.min()=} {k.max()=}')
-          
-    # print(f'DEBUG: {k_bias=} {b=}')
-    # print(f'DEBUG: ', k)
+        # The power-spectrum bias is even in mu, so only the
+        # non-negative half of the directional table is needed.
+        mu_flat = np.abs(np.sum(k_vectors * direction, axis=-1).reshape(-1))
+        mu_flat[zero_mode.reshape(-1)] = 0.0
+        # Use the highest supported spline degree (up to cubic) along each axis.
+        logk_degree = min(3, len(k_bias) - 1)
+        mu_degree = min(3, len(mu_bias) - 1)
+        if logk_degree < 1 or mu_degree < 1:
+            raise ValueError("directional bias needs at least two k and mu samples")
+        interpolator = si.RectBivariateSpline(
+            np.log10(k_bias),
+            np.asarray(mu_bias, dtype=float),
+            b.reshape(len(k_bias), len(mu_bias)),
+            kx=logk_degree,
+            ky=mu_degree,
+            s=0,
+        )
+        b_grid = interpolator(
+            np.clip(np.log10(k_flat), np.log10(k_bias[0]), np.log10(k_bias[-1])),
+            np.clip(mu_flat, np.min(mu_bias), np.max(mu_bias)),
+            grid=False,
+        )
 
-    try:
-        f = log_interp1d(k_bias, b)
-        b = f(k)
-        # for k_bias_ in k_bias:
-        #     print(f'DEBUG: {k_bias_=}')
-        # for b_ in b:
-        #     print(f'DEBUG: {b_=}')
-        # for k_ in k:
-        #     print(f'DEBUG: {k_=}')
-        #     print(f'DEBUG: {f(k_)=}')
+    b_grid = b_grid.reshape(shape)
+    if np.any(~np.isfinite(b_grid)) or np.any(b_grid < 0):
+        raise ValueError("interpolated bias is invalid")
 
-    except:
-        print('### EXCEPTION ###')
-        for b_ in b:
-            print(f'DEBUG: {b_=}')
-        for k_bias_ in k_bias:
-            print(f'DEBUG: {k_bias_=}')
-        for k_ in k:
-            print(f'DEBUG: {k_=}')
-            print(f'DEBUG: {f(k_)=}')
-        print('### END EXCEPTION ###')
-
-        raise RuntimeError()
-
-    # Apply the bias
     delta_k = fft.fftn(delta_x)
-    delta_k = delta_k * np.sqrt(b.reshape(delta_k.shape))
-    
-    # Inverse FFT to compute the realisation
-    delta_x = fft.ifftn(delta_k).real.reshape(shape)
-    
-    return delta_x
-
+    delta_k = delta_k * np.sqrt(b_grid)
+    return fft.ifftn(delta_k).real.reshape(shape)
 
 def apply_velocity_bias(ics, k_bias, b, N, vel=None):
     """
@@ -164,79 +313,204 @@ def apply_velocity_bias(ics, k_bias, b, N, vel=None):
     return
 
 
-def compute_bias(ics, vbc, zstart=1000, kmin=0.1, kmax=10000, n=100,
-                 delta=False, config=None):
-    """
-    Computes the bias to /both/ density and velocity fields.  Assumes
-    v_bc is constant at z=zstart.
+def compute_bias(
+    ics,
+    vbc,
+    zstart=None,
+    dz=None,
+    kmin=0.1,
+    kmax=10000,
+    n=100,
+    delta=False,
+    config=None,
+    vbc_direction=None,
+    n_mu=None,
+    mu_rtol=1.0e-2,
+    mu_atol=1.0e-6,
+    max_n_mu=81,
+    zend=None,
+):
+    """Compute density and velocity bias, optionally resolved by direction.
 
-    :param ics: (Snapshot) Snapshot object containing grafic ICs
-
-    :param vbc: (array) Array containing the v_bc (i.e. |v_b - v_c|)
-        field.
-
-    :param zstart: float, redshift of recombination
-    :param kmin: float, minimum k-value to solve for in py_vbc
-        (Mpc^-1)
-    :param kmax: float, maximum k-value to solve for in py_vbc
-        (Mpc^-1)
-    :param n: int, number of k-values in total if positive, ~number per
-              log10(k) if negative
-    :param config: RuntimeConfig or path to a py_vbc YAML configuration
+    If ``vbc_direction`` is supplied, bias is evaluated on a ``(k, mu)``
+    grid, where ``mu = k_hat . v_bc_hat``. By default the calculation starts
+    from Ahn's 21 non-negative samples (``dmu=0.05``) and refines to a finer
+    grid only if the recalculated bias is not converged to ``mu_rtol``. The
+    negative half is reconstructed by symmetry. ``zstart`` and ``dz`` default
+    to the runtime configuration's ``evolution`` values. For snapshot-based
+    biasing, ``zend`` is always taken from ``ics.z``; a supplied ``zend`` is
+    ignored and emits a warning. ``dz`` is the redshift offset used to
+    differentiate transfer functions at ``zstart``. Set ``n_mu`` to a
+    positive integer to request one fixed non-negative grid instead.
+    Otherwise the historical isotropic bias is returned.
     """
     if config is None:
         raise ValueError("compute_bias requires a py_vbc runtime configuration")
     if not isinstance(config, RuntimeConfig):
         config = load_config(config)
 
-    # Compute size of grid and boxsize
-    N = vbc.shape[0]
-    boxsize = float(ics.boxsize) * (float(N) / float(ics.N))
+    z_snapshot = ics.z
+    evolution = config.evolution
+    zstart = evolution.zstart if zstart is None else float(zstart)
+    if zend is not None:
+        warnings.warn(
+            "compute_bias ignores the supplied zend and uses the grafic "
+            f"snapshot redshift ics.z={z_snapshot}",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+    # Snapshot-based biasing must always evolve to the IC redshift.
+    zend = z_snapshot
+    dz = evolution.dz if dz is None else float(dz)
+    if dz <= 0:
+        raise ValueError("dz must be greater than zero")
 
-    # v_bc redshifts away, so calculate the v_bc at z=zstart
-    z = ics.z
-    # zstart=1000
-    
-    # LC - switched to the median instead, as the rms was giving too
-    # extreme values, particularly near the edge in non-periodic
-    # interpolated vbc fields
-
-    # Also LC: now that I'm actually properly interpolating with yt
-    # I'll switch back to using the rms, which gives pretty much the
-    # same result as the median now
-    
-    # rms = vbc_med(vbc)
     rms = vbc_rms(vbc)
-    rms_recom = rms * (1. + zstart) / (1. + z)
-
+    rms_recom = rms * (1.0 + zstart) / (1.0 + z_snapshot)
     print(f'            v_bc rms {rms:.2f} km/s recom {rms_recom:.2f} km/s')
-    
-    # Calculate how many samples we need for the given per log10(k)
-    if (n < 0):
+
+    if n < 0:
         dlk = np.log10(kmax) - np.log10(kmin)
         n = max([int(np.ceil(np.abs(n) * dlk)), 100])
-        # print('compute_bias')
-        # print('kmin', kmin, 'kmax', kmax, 'dlk', dlk, 'n', n)
-        # sys.exit(0)
-    
-    # Boxsize doesn't make a difference when calculating the power
-    # spectra using py_vbc. The power spectrum tuple contains (p_c, p_b, p_vc,
-    # p_vb) and k is in units of Mpc^-1.
-    k, ps_vbc0 = run_pyvbc(vbc=0.0, zstart=zstart, zend=z, dz=3,
-                           config_file=config, kmin=kmin, kmax=kmax, n=n,
-                           delta=delta)
-    k, ps_vbcrecom = run_pyvbc(vbc=rms_recom, zstart=zstart, zend=z, dz=3,
-                               config_file=config, kmin=kmin, kmax=kmax, n=n,
-                               delta=delta)
 
-    # Calculate the biases
-    b_c = ps_vbcrecom[0] / ps_vbc0[0]
-    b_b = ps_vbcrecom[1] / ps_vbc0[1]
-    b_vc = ps_vbcrecom[2] / ps_vbc0[2]
-    b_vb = ps_vbcrecom[3] / ps_vbc0[3]
+    log_kmin = np.log10(kmin)
+    log_kmax = np.log10(kmax)
+    delta_log_k = (log_kmax - log_kmin) / float(n - 1.0)
+    k_values = 10.0 ** (np.arange(n, dtype=float) * delta_log_k + log_kmin)
+    mu_isotropic = config.cosmology.mu_isotropic
 
-    return k, b_c, b_b, b_vc, b_vb
+    if vbc_direction is None:
+        _, ps_vbc0 = run_pyvbc(
+            vbc=0.0,
+            zstart=zstart,
+            zend=zend,
+            dz=dz,
+            config_file=config,
+            k=k_values,
+            mu=mu_isotropic,
+            delta=delta,
+        )
+        _, ps_vbcrecom = run_pyvbc(
+            vbc=rms_recom,
+            zstart=zstart,
+            zend=zend,
+            dz=dz,
+            config_file=config,
+            k=k_values,
+            mu=mu_isotropic,
+            delta=delta,
+        )
+        return BiasGrid(
+            k=k_values,
+            b_c=ps_vbcrecom[0] / ps_vbc0[0],
+            b_b=ps_vbcrecom[1] / ps_vbc0[1],
+            b_vc=ps_vbcrecom[2] / ps_vbc0[2],
+            b_vb=ps_vbcrecom[3] / ps_vbc0[3],
+        )
 
+    direction = np.asarray(vbc_direction, dtype=float)
+    if direction.shape != (3,):
+        raise ValueError("vbc_direction must have three components")
+    direction_norm = np.linalg.norm(direction)
+    if not np.isfinite(direction_norm) or direction_norm == 0:
+        raise ValueError("vbc_direction must be finite and non-zero")
+    direction = direction / direction_norm
+    if mu_rtol <= 0 or mu_atol <= 0:
+        raise ValueError("mu_rtol and mu_atol must be positive")
+    if max_n_mu < AHN_N_MU:
+        raise ValueError(f"max_n_mu must be at least {AHN_N_MU}")
+    if len(k_values) < 2:
+        raise ValueError("directional bias needs at least two k samples")
+
+    # v_bc=0 is mu-independent, so use a fixed reference value here.
+    _, ps_vbc0 = run_pyvbc(
+        vbc=0.0,
+        zstart=zstart,
+        zend=zend,
+        dz=dz,
+        config_file=config,
+        k=k_values,
+        mu=1.0,
+        delta=delta,
+    )
+
+    if n_mu is not None:
+        n_mu = int(n_mu)
+        if n_mu < 2:
+            raise ValueError("n_mu must be at least 2 for directional interpolation")
+        mu_values = np.linspace(0.0, 1.0, n_mu)
+        bias_tables = _directional_bias_table(
+            k_values,
+            mu_values,
+            ps_vbc0,
+            rms_recom,
+            zstart,
+            zend,
+            dz,
+            config,
+            delta,
+        )
+    else:
+        candidate = AHN_N_MU
+        previous = None
+        previous_mu = None
+        bias_tables = None
+        while True:
+            mu_values = np.linspace(0.0, 1.0, candidate)
+            bias_tables = _directional_bias_table(
+                k_values,
+                mu_values,
+                ps_vbc0,
+                rms_recom,
+                zstart,
+                zend,
+                dz,
+                config,
+                delta,
+            )
+            if previous is not None:
+                error = _directional_bias_error(
+                    k_values,
+                    mu_values,
+                    previous_mu,
+                    bias_tables,
+                    previous,
+                    mu_atol,
+                )
+                if error <= mu_rtol:
+                    selected_n_mu = len(previous_mu)
+                    print(
+                        "            v_bc mu grid converged: "
+                        f"n_mu={selected_n_mu}, "
+                        f"dmu={1.0 / (selected_n_mu - 1):.3g}, "
+                        f"validated against n_mu={candidate}, "
+                        f"max relative change={error:.3e}"
+                    )
+                    mu_values = previous_mu
+                    bias_tables = previous
+                    break
+            if candidate >= max_n_mu:
+                if previous is None:
+                    message = "no refinement comparison was possible"
+                else:
+                    message = f"max relative change={error:.3e}"
+                raise RuntimeError(
+                    "directional bias did not converge before max_n_mu="
+                    f"{max_n_mu} ({message})"
+                )
+            previous = bias_tables
+            previous_mu = mu_values
+            candidate = 2 * candidate - 1
+
+    return BiasGrid(
+        k=k_values,
+        b_c=bias_tables[0],
+        b_b=bias_tables[1],
+        b_vc=bias_tables[2],
+        b_vb=bias_tables[3],
+        mu=mu_values,
+        direction=direction,
+    )
 
 def cube_positions(ics, n, N=None):
     cubes = []

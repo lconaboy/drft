@@ -124,10 +124,13 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True,
 
     if lin:
         ics = [grafic.load_snapshot(path, level, field=field) for field in
-               ['deltab', 'deltac', 'vbc']]
+               ['deltab', 'deltac', 'vbc',
+                'velbx', 'velby', 'velbz',
+                'velcx', 'velcy', 'velcz']]
     else:
         ics = [grafic.load_snapshot(path, level, field=field) for field in
-               ['deltab', 'velbx', 'velby', 'velbz', 'vbc']]
+               ['deltab', 'velbx', 'velby', 'velbz', 'vbc',
+                'velcx', 'velcy', 'velcz']]
 
     # This only works with cubic zoom regions, so check that and exit
     # if not
@@ -213,18 +216,26 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True,
             deltab = ics[0].load_patch(origin, dx_eps)
             deltac = ics[1].load_patch(origin, dx_eps)
             vbc = ics[2].load_patch(origin, dx_eps)
+            vbc_vector = vbc_utils.vbc_vector(
+                [ics[index].load_patch(origin, dx_eps) for index in (3, 4, 5)],
+                [ics[index].load_patch(origin, dx_eps) for index in (6, 7, 8)],
+            )
+            vbc_direction = vbc_utils.mean_vbc_direction(vbc_vector, trim=pad)
 
             # Compute the bias
             vbc_utils.msg(rank, "Computing bias.", verbose)
-            # Commented the below for testing
-            k, b_c, b_b, b_vc, b_vb = vbc_utils.compute_bias(
-                ics[2], vbc, config=config
+            bias = vbc_utils.compute_bias(
+                ics[2], vbc, vbc_direction=vbc_direction, config=config
             )
 
             # Convolve with field
             vbc_utils.msg(rank, "Performing convolution.", verbose)
-            deltab_biased = vbc_utils.apply_density_bias(ics[0], k, b_b, deltab.shape[0], delta_x=deltab)
-            deltac_biased = vbc_utils.apply_density_bias(ics[1], k, b_c, deltac.shape[0], delta_x=deltac)
+            deltab_biased = vbc_utils.apply_density_bias(
+                ics[0], bias, "b", deltab.shape[0], delta_x=deltab
+            )
+            deltac_biased = vbc_utils.apply_density_bias(
+                ics[1], bias, "c", deltac.shape[0], delta_x=deltac
+            )
 
             # print('deltab before', delta_biased)
             # Remove the padded region
@@ -302,6 +313,11 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True,
             velby = ics[2].load_patch(origin, dx_eps)
             velbz = ics[3].load_patch(origin, dx_eps)
             vbc = ics[4].load_patch(origin, dx_eps)
+            vbc_vector = vbc_utils.vbc_vector(
+                [ics[index].load_patch(origin, dx_eps) for index in (1, 2, 3)],
+                [ics[index].load_patch(origin, dx_eps) for index in (5, 6, 7)],
+            )
+            vbc_direction = vbc_utils.mean_vbc_direction(vbc_vector, trim=pad)
 
             # TESTING
             # vbc_utils.vbc_patch_dist(vbc, origin)
@@ -320,8 +336,9 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True,
                 vbc_utils.msg(rank, "Computing bias.", verbose)
                 # vbc_utils.msg(rank, "WARNING kmax set to 2000 Mpc^-1.", verbose)
                 # Commented the below for testing
-                k, b_c, b_b, b_vc, b_vb = vbc_utils.compute_bias(
-                    ics[4], vbc, kmin=kmin, kmax=kmax, n=1024, config=config
+                bias = vbc_utils.compute_bias(
+                    ics[4], vbc, kmin=kmin, kmax=kmax, n=1024,
+                    vbc_direction=vbc_direction, config=config
                 )
 
                 # LC TESTTNG
@@ -331,21 +348,21 @@ def work(path, level, patch_size, levelmin, lin=False, verbose=True,
                 # Convolve with field
                 vbc_utils.msg(rank, "Performing convolution.", verbose)
                 # vbc_utils.msg(rank, 'DEBUG: density')
-                delta_biased = vbc_utils.apply_density_bias(ics[0], k, b_b,
-                                                            delta.shape[0],
-                                                            delta_x=delta)
+                delta_biased = vbc_utils.apply_density_bias(
+                    ics[0], bias, "b", delta.shape[0], delta_x=delta
+                )
                 # vbc_utils.msg(rank, 'DEBUG: velbx')
-                velbx_biased = vbc_utils.apply_density_bias(ics[1], k, b_vb,
-                                                            velbx.shape[0],
-                                                            delta_x=velbx)
+                velbx_biased = vbc_utils.apply_density_bias(
+                    ics[1], bias, "vb", velbx.shape[0], delta_x=velbx
+                )
                 # vbc_utils.msg(rank, 'DEBUG: velby')
-                velby_biased = vbc_utils.apply_density_bias(ics[2], k, b_vb,
-                                                            velby.shape[0],
-                                                            delta_x=velby)
+                velby_biased = vbc_utils.apply_density_bias(
+                    ics[2], bias, "vb", velby.shape[0], delta_x=velby
+                )
                 # vbc_utils.msg(rank, 'DEBUG: velbz')
-                velbz_biased = vbc_utils.apply_density_bias(ics[3], k, b_vb,
-                                                            velbz.shape[0],
-                                                            delta_x=velbz)
+                velbz_biased = vbc_utils.apply_density_bias(
+                    ics[3], bias, "vb", velbz.shape[0], delta_x=velbz
+                )
 
                 if np.any(np.isnan(delta_biased)):
                     vbc_utils.msg(rank, 'NaNs after biasing, exiting!', True)

@@ -33,6 +33,21 @@ TODO
 """
 
 
+def _mu_array(k, mu, default):
+    """Return one directional cosine per wavenumber."""
+    k = np.asarray(k, dtype=float)
+    if mu is None:
+        mu = default
+    values = np.asarray(mu, dtype=float)
+    if values.ndim == 0:
+        values = np.full(k.shape, float(values))
+    if values.shape != k.shape:
+        raise ValueError("mu must be scalar or have the same shape as k")
+    if not np.all(np.isfinite(values)) or np.any(np.abs(values) > 1.0 + 1e-12):
+        raise ValueError("mu values must be finite and lie in [-1, 1]")
+    return values
+
+
 def set_ics(k, zstart, dz, config: RuntimeConfig):
     cosmology = config.cosmology
 
@@ -218,7 +233,9 @@ def set_ics_comb(k, zstart, dz, config: RuntimeConfig):
     return y
 
 
-def derivs_isothermal(z, y, k, T_spline, xe_spline, vbc, zstart, config: RuntimeConfig):
+def derivs_isothermal(
+    z, y, k, T_spline, xe_spline, vbc, zstart, config: RuntimeConfig, mu=None
+):
     cosmology = config.cosmology
 
     # Calculate Hubble parameter
@@ -254,7 +271,9 @@ def derivs_isothermal(z, y, k, T_spline, xe_spline, vbc, zstart, config: Runtime
     fhe = 0.25 * YHE / ((1.0 - YHE) + 0.25 * YHE)
 
     # Convenience variables
-    mu = vbck * k * cosmology.costh * z1
+    if mu is None:
+        mu = cosmology.mu_isotropic
+    streaming = vbck * k * mu * z1
     alpha = 1.5 * H**2 * o_c
     beta = 1.5 * H**2 * o_b
     tau = (BOLTZK * T / (MUB * MPROTON * MPCTOCM**2)) * k**2 * z1**2
@@ -278,16 +297,16 @@ def derivs_isothermal(z, y, k, T_spline, xe_spline, vbc, zstart, config: Runtime
         -(alpha * y[DELTAC + IMAG] + beta * y[DELTAB + IMAG])
         - 2.0 * H * y[DELTAC + VELIMAG]
     )
-    dy[DELTAB + REAL] = mu * y[DELTAB + IMAG] - y[DELTAB + VELREAL]
-    dy[DELTAB + IMAG] = -mu * y[DELTAB + REAL] - y[DELTAB + VELIMAG]
+    dy[DELTAB + REAL] = streaming * y[DELTAB + IMAG] - y[DELTAB + VELREAL]
+    dy[DELTAB + IMAG] = -streaming * y[DELTAB + REAL] - y[DELTAB + VELIMAG]
     dy[DELTAB + VELREAL] = (
-        mu * y[DELTAB + VELIMAG]
+        streaming * y[DELTAB + VELIMAG]
         - 2 * H * y[DELTAB + VELREAL]
         - (alpha * y[DELTAC + REAL] + beta * y[DELTAB + REAL])
         + tau * y[DELTAB + REAL]
     )
     dy[DELTAB + VELIMAG] = (
-        -mu * y[DELTAB + VELREAL]
+        -streaming * y[DELTAB + VELREAL]
         - 2 * H * y[DELTAB + VELIMAG]
         - (alpha * y[DELTAC + IMAG] + beta * y[DELTAB + IMAG])
         + tau * y[DELTAB + IMAG]
@@ -298,7 +317,9 @@ def derivs_isothermal(z, y, k, T_spline, xe_spline, vbc, zstart, config: Runtime
     return dy
 
 
-def derivs(z, y, k, T_spline, xe_spline, vbc, zstart, config: RuntimeConfig):
+def derivs(
+    z, y, k, T_spline, xe_spline, vbc, zstart, config: RuntimeConfig, mu=None
+):
     cosmology = config.cosmology
 
     # Calculate Hubble parameter
@@ -334,7 +355,9 @@ def derivs(z, y, k, T_spline, xe_spline, vbc, zstart, config: RuntimeConfig):
     fhe = 0.25 * YHE / ((1.0 - YHE) + 0.25 * YHE)
 
     # Convenience variables
-    mu = vbck * k * cosmology.costh * z1
+    if mu is None:
+        mu = cosmology.mu_isotropic
+    streaming = vbck * k * mu * z1
     alpha = 1.5 * H**2 * o_c
     beta = 1.5 * H**2 * o_b
     tau = (BOLTZK * T / (MUB * MPROTON * MPCTOCM**2)) * k**2 * z1**2
@@ -358,16 +381,16 @@ def derivs(z, y, k, T_spline, xe_spline, vbc, zstart, config: RuntimeConfig):
         -(alpha * y[DELTAC + IMAG] + beta * y[DELTAB + IMAG])
         - 2.0 * H * y[DELTAC + VELIMAG]
     )
-    dy[DELTAB + REAL] = mu * y[DELTAB + IMAG] - y[DELTAB + VELREAL]
-    dy[DELTAB + IMAG] = -mu * y[DELTAB + REAL] - y[DELTAB + VELIMAG]
+    dy[DELTAB + REAL] = streaming * y[DELTAB + IMAG] - y[DELTAB + VELREAL]
+    dy[DELTAB + IMAG] = -streaming * y[DELTAB + REAL] - y[DELTAB + VELIMAG]
     dy[DELTAB + VELREAL] = (
-        mu * y[DELTAB + VELIMAG]
+        streaming * y[DELTAB + VELIMAG]
         - 2 * H * y[DELTAB + VELREAL]
         - (alpha * y[DELTAC + REAL] + beta * y[DELTAB + REAL])
         + tau * (y[DELTAB + REAL] + y[DELTAT + REAL])
     )
     dy[DELTAB + VELIMAG] = (
-        -mu * y[DELTAB + VELREAL]
+        -streaming * y[DELTAB + VELREAL]
         - 2 * H * y[DELTAB + VELIMAG]
         - (alpha * y[DELTAC + IMAG] + beta * y[DELTAB + IMAG])
         + tau * (y[DELTAB + IMAG] + y[DELTAT + IMAG])
@@ -401,7 +424,9 @@ def derivs(z, y, k, T_spline, xe_spline, vbc, zstart, config: RuntimeConfig):
     return dy
 
 
-def derivs_cicsass(a, y, k, T_spline, xe_spline, vbc, zstart, config: RuntimeConfig):
+def derivs_cicsass(
+    a, y, k, T_spline, xe_spline, vbc, zstart, config: RuntimeConfig, mu=None
+):
     """Evaluate the evolution equations using the legacy CICsASS convention."""
     cosmology = config.cosmology
     z = 1.0 / a - 1.0
@@ -417,7 +442,9 @@ def derivs_cicsass(a, y, k, T_spline, xe_spline, vbc, zstart, config: RuntimeCon
     v_stream_kpc = vbc / MPCTOKM / (a * (1.0 + zstart))
     omega_c = omega_c0 / (omega_c0 + omega_b0 + omega_r0 / a)
     omega_b = omega_b0 / (omega_c0 + omega_b0 + omega_r0 / a)
-    theta = cosmology.costh
+    if mu is None:
+        mu = cosmology.mu_isotropic
+    theta = mu
 
     deriv = np.zeros(10)
     deriv[DELTAC + REAL] = -y[DELTAC + VELREAL]
@@ -478,7 +505,9 @@ def hubbleZ(zCurrent, cosmology):
     )
 
 
-def derivs_comb(z, y, k, T_spline, xe_spline, vbc, zstart, config: RuntimeConfig):
+def derivs_comb(
+    z, y, k, T_spline, xe_spline, vbc, zstart, config: RuntimeConfig, mu=None
+):
     cosmology = config.cosmology
 
     # Calculate Hubble parameter
@@ -512,7 +541,9 @@ def derivs_comb(z, y, k, T_spline, xe_spline, vbc, zstart, config: RuntimeConfig
     fhe = 0.25 * YHE / ((1.0 - YHE) + 0.25 * YHE)
 
     # Convenience variables
-    mu = vbck * k * cosmology.costh * z1
+    if mu is None:
+        mu = cosmology.mu_isotropic
+    streaming = vbck * k * mu * z1
     alpha = 1.5 * H**2 * o_c
     beta = 1.5 * H**2 * o_b
     tau = (BOLTZK * T / (MUB * MPROTON * MPCTOCM**2)) * k**2 * z1**2
@@ -532,11 +563,11 @@ def derivs_comb(z, y, k, T_spline, xe_spline, vbc, zstart, config: RuntimeConfig
 
     dy[DELC] = -y[DELC + VEL]
     dy[DELC + VEL] = -(alpha * y[DELC] + beta * y[DELB]) - 2.0 * H * y[DELC + VEL]
-    dy[DELB] = -1j * mu * y[DELB] - y[DELB + VEL]
+    dy[DELB] = -1j * streaming * y[DELB] - y[DELB + VEL]
     dy[DELB + VEL] = (
         -((alpha * y[DELC] + beta * y[DELB]))
         - (2 * H * y[DELB + VEL])
-        - (1j * mu * y[DELB + VEL])
+        - (1j * streaming * y[DELB + VEL])
         + tau * (y[DELB] + y[DELT])
     )
 
@@ -549,7 +580,7 @@ def derivs_comb(z, y, k, T_spline, xe_spline, vbc, zstart, config: RuntimeConfig
     # Naoz+ (2005) say this is only valid for z<=200, but Ahn showed
     # that actually its fine for z < 1000
     # dy[DELT] = (2.0/3.0)*dy[DELB] - gamma * Tr * y[DELT]
-    dy[DELT] = (2.0 / 3.0) * (-1j * mu * y[DELB] - y[DELB + VEL]) - gamma * Tr * y[DELT]
+    dy[DELT] = (2.0 / 3.0) * (-1j * streaming * y[DELB] - y[DELB + VEL]) - gamma * Tr * y[DELT]
 
     dy /= -H * z1
 
@@ -567,9 +598,11 @@ def calc_derivs(
     integrator="LSODA",
     isothermal=False,
     require_z0=False,
+    mu=None,
 ):
     if dz <= 0:
         raise ValueError("dz must be greater than zero")
+    mu_values = _mu_array(k, mu, config.cosmology.mu_isotropic)
     redshifts = [int(zstart), int(zstart - dz), int(zstart + dz)]
     if require_z0:
         redshifts.append(0)
@@ -605,7 +638,7 @@ def calc_derivs(
 
         r = solve_ivp(
             fun=lambda z, y: derivs_(
-                z, y, ik, T_spline, xe_spline, vbc, zstart, config
+                z, y, ik, T_spline, xe_spline, vbc, zstart, config, mu_values[i]
             ),
             t_span=(zstart, zend),
             t_eval=np.array([zend]),
@@ -641,7 +674,9 @@ def calc_derivs_cicsass(
     config: RuntimeConfig,
     verbose=False,
     integrator="LSODA",
+    mu=None,
 ):
+    mu_values = _mu_array(k, mu, config.cosmology.mu_isotropic)
     config.validate_files([int(zstart), int(zstart - dz), int(zstart + dz)])
     T_spline, xe_spline = interpolate_recfast(config)
     y0 = set_ics_cicsass(k, zstart, dz, config)
@@ -668,7 +703,7 @@ def calc_derivs_cicsass(
 
         r = solve_ivp(
             fun=lambda a, y: derivs_cicsass(
-                a, y, ik, T_spline, xe_spline, vbc, zstart, config
+                a, y, ik, T_spline, xe_spline, vbc, zstart, config, mu_values[i]
             ),
             t_span=(1.0 / (1.0 + zstart), 1.0 / (1.0 + zend)),
             t_eval=np.array([1.0 / (1.0 + zend)]),
@@ -710,7 +745,9 @@ def calc_derivs_comp(
     config: RuntimeConfig,
     verbose=False,
     integrator="LSODA",
+    mu=None,
 ):
+    mu_values = _mu_array(k, mu, config.cosmology.mu_isotropic)
     config.validate_files([int(zstart), int(zstart - dz), int(zstart + dz)])
     T_spline, xe_spline = interpolate_recfast(config)
     y0 = set_ics_comb(k, zstart, dz, config)
@@ -737,7 +774,7 @@ def calc_derivs_comp(
 
         r = solve_ivp(
             fun=lambda z, y: derivs_comb(
-                z, y, ik, T_spline, xe_spline, vbc, zstart, config
+                z, y, ik, T_spline, xe_spline, vbc, zstart, config, mu_values[i]
             ),
             t_span=(zstart, zend),
             t_eval=np.array([zend]),

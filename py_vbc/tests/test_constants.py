@@ -19,7 +19,7 @@ omega_b = TEST_CONFIG.cosmology.omega_b
 sigma_8 = TEST_CONFIG.cosmology.sigma_8
 ns = TEST_CONFIG.cosmology.ns
 omega_r = TEST_CONFIG.cosmology.omega_r
-costh = TEST_CONFIG.cosmology.costh
+mu_isotropic = TEST_CONFIG.cosmology.mu_isotropic
 
 
 def test_definitions_and_constants_use_uppercase_names():

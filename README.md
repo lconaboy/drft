@@ -21,8 +21,9 @@ The basic steps for running drft are:
 and dark matter velocities (e.g. using
 [CAMB](https://github.com/cmbant/CAMB/), Lewis et al. 2000)
 
-2. Use these transfer functions to generate cubic ICs using [MUSIC](https://bitbucket.org/ohahn/music/src)
-(this can be enforced by setting `force_equal_extent=yes` in the
+2. Use these transfer functions to generate cubic ICs using
+[MUSIC](https://bitbucket.org/ohahn/music/src) (this can be enforced
+by setting `force_equal_extent=yes` in the
 [MUSIC](https://bitbucket.org/ohahn/music/src) configuration file)
 
 3. Calculate the v_bc field (this can be done using `yt_ic_vbc.py`,
@@ -42,7 +43,12 @@ cosmology:
   omega_b: 0.049
   sigma_8: 0.812
   ns: 0.965
-  costh: 1.0
+  mu_isotropic: 1.0
+
+evolution:
+  zstart: 1000.0
+  zend: 200.0
+  dz: 3.0
 
 filenames:
   transfer_functions:
@@ -52,17 +58,28 @@ filenames:
     1003: tfs/planck2018_transfer_out_z1003.dat
 ```
 
-All paths in `filenames` are resolved relative to the YAML file. Transfer
-functions are explicit redshift-to-file entries, so their filenames do not
-need to follow a shared prefix. For example, a run with `zstart=1000` and
-`dz=3` needs entries at z=997, 1000, and 1003; power-spectrum normalization
-also uses the configured z=0 entry. `rf_base` is optional; when omitted,
-py_vbc uses the bundled `py_vbc/recfast/planck2018_recfast.dat` file and
-prints one runtime notice. A custom `rf_base` may point to any
-[RECFAST](https://www.astro.ubc.ca/people/scott/recfast.html)
-(Seager et al. 1999) output. The radiation density is derived internally as
-`omega_r = 4.15e-5 / (h ** 2.0)` (Dodelson 2002, Eq. 2.86), so it is not a
-YAML input.
+All paths in `filenames` are resolved relative to the YAML
+file. Transfer functions are explicit redshift-to-file entries, so
+their filenames do not need to follow a shared prefix. The
+`cosmology.mu_isotropic` parameter allows for massing a single value
+of mu = cos \theta used when solving the evolution equations (included
+for backward compatibility with the setup used in Conaboy et
+al. 2023).  The `evolution` section supplies the default `zstart` and
+`dz` for standalone `py_vbc` runs. `zend` may be set to `null` (or
+omitted) when the configuration is used only by drft's snapshot
+workflow; standalone `run_pyvbc()` then requires an explicit
+`zend=`. `utils.compute_bias()` always uses the redshift of the grafic
+snapshot (`ics.z`) as its endpoint; a supplied `zend=` argument is
+ignored and emits a warning. For example, the default `zstart=1000`
+and `dz=3` needs entries at z=997, 1000, and 1003; power-spectrum
+normalization also uses the configured z=0 entry. `rf_base` is
+optional; when omitted, py_vbc uses the bundled
+`py_vbc/recfast/planck2018_recfast.dat` file and prints one runtime
+notice.  A custom `rf_base` may point to any
+[RECFAST](https://www.astro.ubc.ca/people/scott/recfast.html) (Seager
+et al. 1999) output. The radiation density is derived internally as
+`omega_r = 4.15e-5 / (h ** 2.0)` (Dodelson 2002, Eq. 2.86), so it is
+not a YAML input.
 
 Pass the selected configuration to every run:
 
@@ -71,9 +88,6 @@ import py_vbc
 
 k, (p_c, p_b, p_vc, p_vb) = py_vbc.run_pyvbc(
     vbc=30.0,
-    zstart=1000.0,
-    zend=200.0,
-    dz=3.0,
     config_file="path/to/params.yaml",
 )
 ```
@@ -94,7 +108,8 @@ The main `drft` routines (`bias_ics.py`, `gen_ics.py`, and
 ### Acknowledging
 
 If you use results produced by this package in a scientific
-publication, please cite the methodology paper Conaboy et al. (2023) [ADS](https://ui.adsabs.harvard.edu/abs/2023MNRAS.525.5479C/abstract).
+publication, please cite the methodology paper Conaboy et al. (2023)
+[ADS](https://ui.adsabs.harvard.edu/abs/2023MNRAS.525.5479C/abstract).
 
 
 ### References

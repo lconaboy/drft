@@ -14,7 +14,11 @@ def write_config(path: Path) -> Path:
         "  omega_b: 0.04\n"
         "  sigma_8: 0.8\n"
         "  ns: 0.97\n"
-        "  costh: 1.0\n"
+        "  mu_isotropic: 1.0\n"
+        "evolution:\n"
+        "  zstart: 1000.0\n"
+        "  zend: 200.0\n"
+        "  dz: 3.0\n"
         "filenames:\n"
         "  transfer_functions:\n"
         "    0: tfs/runtime_transfer_z000.dat\n"
@@ -34,7 +38,10 @@ def test_load_bundled_yaml():
     assert config.cosmology.sigma_8 == 0.812
     assert config.cosmology.ns == 0.965
     assert config.cosmology.omega_r == 4.15e-5 / (config.cosmology.h**2.0)
-    assert config.cosmology.costh == 1.0
+    assert config.cosmology.mu_isotropic == 1.0
+    assert config.evolution.zstart == 1000.0
+    assert config.evolution.zend == 200.0
+    assert config.evolution.dz == 3.0
     assert config.transfer_function_path(0) == (
         PACKAGE_ROOT / "tfs" / "planck2018_transfer_out_z000.dat"
     )

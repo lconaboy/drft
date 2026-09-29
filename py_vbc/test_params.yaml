@@ -4,7 +4,12 @@ cosmology:
   omega_b: 0.046
   sigma_8: 0.8
   ns: 0.95
-  costh: 1.0
+  mu_isotropic: 1.0
+
+evolution:
+  zstart: 1000.0
+  zend: 200.0
+  dz: 3.0
 
 filenames:
   transfer_functions:

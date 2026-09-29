@@ -45,7 +45,7 @@ class Cosmology:
     omega_b: float
     sigma_8: float
     ns: float
-    costh: float
+    mu_isotropic: float
 
     def __post_init__(self) -> None:
         for name in (
@@ -54,7 +54,7 @@ class Cosmology:
             "omega_b",
             "sigma_8",
             "ns",
-            "costh",
+            "mu_isotropic",
         ):
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -76,8 +76,8 @@ class Cosmology:
             )
         if self.sigma_8 <= 0:
             raise ConfigError("cosmology.sigma_8 must be greater than zero")
-        if not -1 <= self.costh <= 1:
-            raise ConfigError("cosmology.costh must be between -1 and 1")
+        if not -1 <= self.mu_isotropic <= 1:
+            raise ConfigError("cosmology.mu_isotropic must be between -1 and 1")
 
     @property
     def omega_r(self) -> float:
@@ -86,10 +86,48 @@ class Cosmology:
 
 
 @dataclass(frozen=True)
+class EvolutionConfig:
+    """Redshifts and transfer-function derivative offset for an evolution run."""
+
+    zstart: float
+    zend: float | None
+    dz: float
+
+    def __post_init__(self) -> None:
+        for name in ("zstart", "dz"):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ConfigError(f"evolution.{name} must be a number")
+            value = float(value)
+            if not math.isfinite(value):
+                raise ConfigError(f"evolution.{name} must be finite")
+            object.__setattr__(self, name, value)
+        if self.zend is not None:
+            if isinstance(self.zend, bool) or not isinstance(self.zend, (int, float)):
+                raise ConfigError("evolution.zend must be a number or null")
+            zend = float(self.zend)
+            if not math.isfinite(zend):
+                raise ConfigError("evolution.zend must be finite")
+            object.__setattr__(self, "zend", zend)
+        self.validate()
+
+    def validate(self) -> None:
+        if self.zstart < 0:
+            raise ConfigError("evolution.zstart must be non-negative")
+        if self.zend is not None and self.zend < 0:
+            raise ConfigError("evolution.zend must be non-negative")
+        if self.dz <= 0:
+            raise ConfigError("evolution.dz must be greater than zero")
+        if self.zend is not None and self.zstart == self.zend:
+            raise ConfigError("evolution.zstart and evolution.zend must differ")
+
+
+@dataclass(frozen=True)
 class RuntimeConfig:
     """A validated, immutable py_vbc runtime configuration."""
 
     cosmology: Cosmology
+    evolution: EvolutionConfig
     transfer_functions: Mapping[int, Path]
     source: Path
     rf_base: Path | None = None
@@ -97,6 +135,8 @@ class RuntimeConfig:
     def __post_init__(self) -> None:
         if not isinstance(self.cosmology, Cosmology):
             raise ConfigError("cosmology must be a Cosmology instance")
+        if not isinstance(self.evolution, EvolutionConfig):
+            raise ConfigError("evolution must be an EvolutionConfig instance")
 
         if not isinstance(self.transfer_functions, Mapping):
             raise ConfigError("transfer_functions must be a mapping")
@@ -203,6 +243,12 @@ def _number(section: dict[str, Any], section_name: str, key: str) -> float:
     return float(value)
 
 
+def _optional_number(section: dict[str, Any], section_name: str, key: str) -> float | None:
+    if key not in section or section[key] is None:
+        return None
+    return _number(section, section_name, key)
+
+
 def _path(value: Any, key: str, source: Path) -> Path:
     if not isinstance(value, str) or not value.strip():
         raise ConfigError(f"YAML parameter filenames.{key} must be a path string")
@@ -243,8 +289,11 @@ def load_config(config_file: str | Path) -> RuntimeConfig:
     """Load and validate a py_vbc YAML configuration.
 
     Relative ``filenames`` paths are resolved relative to the YAML file so a
-    configuration and its data files can be moved together. If ``rf_base`` is
-    omitted, the bundled Planck RECFAST file is selected and reported once.
+    configuration and its data files can be moved together. The ``evolution``
+    section supplies the default ``zstart`` and ``dz`` values; ``zend`` is
+    optional and is only required when running :func:`py_vbc.run_pyvbc`
+    without an explicit endpoint. If ``rf_base`` is omitted, the bundled
+    Planck RECFAST file is selected and reported once.
     """
     source = Path(config_file).expanduser().resolve()
     if not source.is_file():
@@ -260,9 +309,16 @@ def load_config(config_file: str | Path) -> RuntimeConfig:
         raise ConfigError("the YAML configuration root must be a mapping")
 
     cosmology_data = _required_section(data, "cosmology")
+    evolution_data = _required_section(data, "evolution")
     filenames = _required_section(data, "filenames")
 
     rf_value = filenames.get("rf_base")
+
+    evolution = EvolutionConfig(
+        zstart=_number(evolution_data, "evolution", "zstart"),
+        zend=_optional_number(evolution_data, "evolution", "zend"),
+        dz=_number(evolution_data, "evolution", "dz"),
+    )
 
     cosmology = Cosmology(
         h=_number(cosmology_data, "cosmology", "h"),
@@ -270,11 +326,12 @@ def load_config(config_file: str | Path) -> RuntimeConfig:
         omega_b=_number(cosmology_data, "cosmology", "omega_b"),
         sigma_8=_number(cosmology_data, "cosmology", "sigma_8"),
         ns=_number(cosmology_data, "cosmology", "ns"),
-        costh=_number(cosmology_data, "cosmology", "costh"),
+        mu_isotropic=_number(cosmology_data, "cosmology", "mu_isotropic"),
     )
 
     return RuntimeConfig(
         cosmology=cosmology,
+        evolution=evolution,
         transfer_functions=_transfer_function_paths(filenames, source),
         source=source,
         rf_base=(_path(rf_value, "rf_base", source) if rf_value is not None else None),
